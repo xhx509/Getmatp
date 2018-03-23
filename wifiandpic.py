@@ -278,7 +278,7 @@ def p_create_pic():
                     continue
                 '''
                 try: 
-                    index_good=np.where(df2['Depth (m)']<0.70*mean(df['Depth (m)']))) #Attention : If you want to use the angle, change the number under 1.
+                    index_good=np.where(df2['Depth (m)']<0.70*mean(df['Depth (m)'])) #Attention : If you want to use the angle, change the number under 1.
                     print index_good[0][3],index_good[0][-3]
                     index_good_start=index_good[0][3]
                     index_good_end=index_good[0][-3]
