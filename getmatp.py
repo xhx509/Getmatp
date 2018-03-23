@@ -1,7 +1,7 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.7
+version 0.0.8
 Add vessel number ,get rid of 't','ma' file. improve ploting, convert psi to depth meter in
           getmap.py and control_file.txt
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
@@ -59,7 +59,8 @@ scanner = btle.Scanner()
 # to a file or database. This is a lightweight example.
 last_connection = {}
 index_times=0
-func_readgps()
+func_readgps()  # We need to run function readgps twice to make sure we get at least two gps data in the gps file
+func_readgps()  # We need to run function readgps twice to make sure we get at least two gps data in the gps file
 while True:
     print('-'),
     
@@ -187,16 +188,11 @@ while True:
             print('Disconnecting')
             file_names=glob.glob('/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/*.lid')
             file_names.sort(key=os.path.getmtime)
-            #file_names2=glob.glob('/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/*.lis')
-            #file_names2.sort(key=os.path.getmtime)
+
             file_name=file_names[-1]
             #file_name2=file_names2[-1]
             print file_name
-            '''
-            nums=[]
-            for i in file_names:
-                nums.append(int(i[0:i.index(')')].split('(')[1]))
-            '''    
+
 
             #file_num =str(max(nums)+1)
             file_num=datetime.datetime.now().strftime("%y%m%d_%H_%M")
@@ -222,33 +218,15 @@ while True:
             print('Extracting full resolution temperature data ')
             start = datetime.datetime(2011, 8, 1)  # create datetime objects for start and end time
             end = datetime.datetime(2030, 8, 3)
-            #OdlParsing.convert_temperature(file_name, out_path='/00-1e-c0-3d-7a-30/data/aug_4_2014_T.txt', start_time=start, end_time=end)
-
-            # Example - same as last example but with legacy header
-            #print('Extracting full resolution temperature data for Aug 4 2014 with legacy header...')
-            #OdlParsing.convert_temperature(file_name, out_path='/00-1e-c0-3d-7a-30/data/legacy_T.txt', start_time=start, end_time=end, header='legacy')
-
-            # Example - extract accelerometer and magnetometer data
-            #print('Extracting two-minute averaged accelerometer/magnetometer data for Aug 4 2014...')
-            #OdlParsing.convert_xyz(file_name, start_time=start, end_time=end, avg_interval=120)
             
-            '''
-            # Example - convert to five-minute averaged current
-            print('Converting to five-minute averaged current (this may take a minute or two)...')
-            flow_profile = 'TCM-1, No Ballast Washer, Salt Water.cal'  # path to flow-profile
-            OdlParsing.convert_flow(file_name, flow_profile, avg_interval=20)            
-            '''
-            #ma_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+'('+file_num+')_P.txt'
-            #t_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+'('+file_num+')_T.txt'
             s_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+'('+file_num+')_S.txt'
             df=pd.read_csv(s_file,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse)#creat a new Datetimeindex
-            
-            #os.rename(t_file,'/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'T.txt')
-            #os.rename(ma_file,'/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'P.txt')
+
             os.rename(s_file,'/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt')
             new_file_path='/home/pi/Desktop/towifi/li_'+serial_num+'_'+str(df.index[-1]).replace(':','').replace('-','').replace(' ','_')#folder path store the files to uploaded by wifi
             
             s_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt'
+            
             if len(df)>1000:
                         
                         os.remove(s_file)
@@ -256,7 +234,7 @@ while True:
                         time.sleep(1800)
                         os.system('sudo rm /home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/*.lid')
                         os.system('sudo reboot')
-                        
+                       
             df1=pd.read_csv(s_file,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse)
             df1.index.names=['datet(GMT)']
             file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
@@ -272,6 +250,7 @@ while True:
                             lat.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][1].values[0])
                             lon.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][2].values[0])
                     except:
+                            print 'gps time is not matching the logger'
                             time.sleep(1000)
                             os.system('sudo reboot')
             
@@ -280,19 +259,6 @@ while True:
             df1['lon']=lon
             df1=df1[['lat','lon','Temperature (C)','Depth (m)']]
             print 'got the df'
-            '''
-            file3='/home/pi/Desktop/month_data_location/'+serial_num+str(df.index[-1]).split('-')[0]+str(df.index[-1]).split('-')[1]+'.csv'
-            if not os.path.exists(file3):
-                                df1.to_csv(file3)
-            else:              
-                                df3=pd.read_csv(file3,index_col='datet(GMT)')
-                                df3=df3.append(df1)
-                                df3.to_csv(file3)
-            
-            month_files=glob.glob('/home/pi/Desktop/month_data_location/*')
-            if len(month_files)>1:
-                    os.rename(min(month_files),'/home/pi/Desktop/towifi/'+min(month_files).split('/')[-1])
-            '''
             print 'Parse accomplish'
             
             try:

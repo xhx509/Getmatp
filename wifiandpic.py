@@ -44,7 +44,6 @@ def gmt_to_eastern(times_gmt):
         date_gmt=gmt.localize(date)
         easterndate=date_gmt.astimezone(eastern)
         times.append(easterndate)
-
     return times
 ##################################
 # HARDCODE input file name and output file name
@@ -248,7 +247,8 @@ def p_create_pic():
             dif_data=list(set(files)-set(upfiles))
            
             if dif_data==[]:
-                print 'no new pic was found'
+                #print 'no new data found recently, so we will look at old ones'
+                print  'Standby. When the program detects a probe haul, machine will reboot and show new data.'
                 time.sleep(5)
                 pass
             
@@ -256,24 +256,29 @@ def p_create_pic():
     ##################################
     ##################################
             dif_data.sort(key=os.path.getmtime)
-            print dif_data
+            #print dif_data
             for fn in dif_data:          
             
                 fn2=fn
-                print fn
+                
+                #print fn
                 
                 if not os.path.exists('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14]):
                     os.makedirs('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14])
                 df=pd.read_csv(fn,sep=',',skiprows=7,parse_dates={'datet':[0]},index_col='datet',date_parser=parse2)#creat a new Datetimeindex
                 df2=df
+                df2['Depth (m)']=[x*(-0.5468) for x in df2['Depth (m)'].values]
                 #df['yd']=df.index.dayofyear+df.index.hour/24.+df.index.minute/60./24.+df.index.second/60/60./24.-1.0 #creates a yrday0 field
                 #df2['yd']=df2.index.dayofyear+df2.index.hour/24.+df2.index.minute/60./24.+df2.index.second/60/60./24.-1.0
-                print len(df2),len(df)
+                #print len(df2),len(df)
                 if len(df2)<5:
                     continue
-               
+                '''
+                if max(df.index)-min(df.index)>Timedelta('0 days 04:00:00'):
+                    continue
+                '''
                 try: 
-                    index_good=np.where(abs(df2['Depth (m)'])<3) #Attention : If you want to use the angle, change the number under 1.
+                    index_good=np.where(df2['Depth (m)']<0.70*mean(df['Depth (m)']))) #Attention : If you want to use the angle, change the number under 1.
                     print index_good[0][3],index_good[0][-3]
                     index_good_start=index_good[0][3]
                     index_good_end=index_good[0][-3]
@@ -288,12 +293,9 @@ def p_create_pic():
                 fig=plt.figure()
                 ax1=fig.add_subplot(211)
                 ax2=fig.add_subplot(212)
-                #df['depth'].plot()
                 time_df2=gmt_to_eastern(df2.index)
-                ax2.plot(time_df2,df2['Depth (m)'],'b',label='Depth',color='green')
-                
-                #ax2.plot(df2.index[index_good_start:index_good_end],df2['Az (g)'][index_good_start:index_good_end],'red',linewidth=4,label='in the water')
-                ax2.legend()
+                #print time_df2
+
                 #df['temp'].plot()
                 time_df=gmt_to_eastern(df.index)
                 ax1.plot(time_df,df['Temperature (C)'],'b')
@@ -302,17 +304,11 @@ def p_create_pic():
                 ax1.legend(['temp','in the water'])
                 #print 2222222222222222222222222222222222222222222
                 try:    
-                        if max(df.index)-min(df.index)>Timedelta('0 days 04:00:00'):
-                            ax1.xaxis.set_major_locator(dates.HourLocator(interval=(max(df.index)-min(df.index)).seconds/3600/6))# for hourly plot
-                            ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
-                            ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
-                            
-                        else: 
                             ax1.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
                             ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                             ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                 except:
-                    print 'too less data'
+                            print 'not enough data'
 
                 ax1.text(0.9, 0.15, 'mean temperature in the water='+str(round(meantemp*1.8+32,1))+'F',
                             verticalalignment='bottom', horizontalalignment='right',
@@ -332,12 +328,13 @@ def p_create_pic():
                 ax12.set_ylim(np.nanmin(df['Temperature (C)'].values)*1.8+32,np.nanmax(df['Temperature (C)'].values)*1.8+32)
 
 
-
-                ax2=fig.add_subplot(212)
                 #df['depth'].plot()
-                ax2.plot(df2.index,df2['Depth (m)'].values,color='green')
+                ax2.plot(time_df2,df2['Depth (m)'],'b',label='Depth',color='green')
+                
+                #ax2.plot(df2.index[index_good_start:index_good_end],df2['Az (g)'][index_good_start:index_good_end],'red',linewidth=4,label='in the water')
+                ax2.legend()
                 ax2.invert_yaxis()
-                ax2.set_ylabel('depth(m)')
+                ax2.set_ylabel('Depth(Fathom)')
                 
                 ax2.set_ylim(np.nanmin(df2['Depth (m)'].values),np.nanmax(df2['Depth (m)'].values))
                 ax2.set_ylim()
@@ -347,9 +344,9 @@ def p_create_pic():
                 ax2.grid()
                 #ax2.set_ylim(-1,1)
                 ax22=ax2.twinx()
-                ax22.set_ylabel('depth(feet)')
+                ax22.set_ylabel('Depth(feet)')
                
-                ax22.set_ylim(np.nanmax(df2['Depth (m)'].values)*3.28084,np.nanmin(df2['Depth (m)'].values)*3.28084)        
+                ax22.set_ylim(np.nanmax(df2['Depth (m)'].values)*6,np.nanmin(df2['Depth (m)'].values)*6)        
                 ax22.set_ylim()
                 ax22.invert_yaxis()
 
@@ -359,10 +356,10 @@ def p_create_pic():
                 #ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
                 plt.gcf().autofmt_xdate()    
                 ax2.set_xlabel('Local TIME '+time_df[0].strftime('%m/%d/%Y %H:%M:%S')+' - '+time_df[-1].strftime('%m/%d/%Y %H:%M:%S'))
-                print fn.split('/')[-1][2:12]
+                #print fn.split('/')[-1][2:12]
                 plt.savefig('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14]+'/'+fn.split('/')[-1][15:21]+'.png')
                 plt.close()
-                print 'picture is saved'
+                #print 'picture is saved'
                 #os.system('sudo rm '+fn)
                 #os.system('sudo rm '+fn2)
               
@@ -376,7 +373,7 @@ def p_create_pic():
             
             
 
-            print ' All Pictures are Generated'
+            print 'New data successfully downloaded. Plot will appear.'
             
             
                  
@@ -489,7 +486,7 @@ def judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim):
     valid='no'
     try:
         df=pd.read_csv(s_file,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse)#creat a new Datetimeindex
-        df2=pd.read_csv(s_file,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse)
+        
         index_good_start=1
         index_good_end=len(df)-1
         if boat_type=='lobster':
@@ -500,8 +497,8 @@ def judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim):
                 valid='yes'
                 return valid,index_good_start,index_good_end
         else:
-            index_good=np.where(abs(df2['Depth (m)'])>logger_pressure_lim)#make sure you change it before on the real boat
-            if len(index_good[0])<logger_timerange_lim or len(df2)>1440:  #make sure the good data is long enough,and total data is not more than one day  
+            index_good=np.where(abs(df['Depth (m)'])>logger_pressure_lim)#make sure you change it before on the real boat
+            if len(index_good[0])<logger_timerange_lim or len(df)>1440:  #make sure the good data is long enough,and total data is not more than one day  
                 print 'too less data, not in the sea'
                 return valid,index_good_start,index_good_end
             else:
