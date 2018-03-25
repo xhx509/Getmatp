@@ -1,7 +1,7 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.8
+version 0.0.9 2018/03/25 where previous versions are documented in the "getmatp_changes" googglesheet
 Add vessel number ,get rid of 't','ma' file. improve ploting, convert psi to depth meter in
           getmap.py and control_file.txt
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
@@ -42,8 +42,8 @@ LOGGING = False      #Enable log file for debugging Bluetooth COM errors. Delete
 
 file='control_file.txt'
 f1=open(file,'r')
-logger_timerange_lim=int(f1.readline().split('  ')[0])
-logger_pressure_lim=int(f1.readline().split('  ')[0])
+logger_timerange_lim=int(f1.readline().split('  ')[0]) # what is the difference between this and the hardcoded "connection_interval"?
+logger_pressure_lim=int(f1.readline().split('  ')[0]) # minimum pressure in what units to accept data
 transmit=f1.readline().split('  ')[0]
 MAC_FILTER=[f1.readline().split('  ')[0]]
 boat_type=f1.readline().split('  ')[0]
@@ -51,9 +51,9 @@ vessel_num=f1.readline().split('  ')[0]
 f1.close()
 header_file=open('/home/pi/Desktop/header.csv','w')
 header_file.writelines('Probe Type,Lowell\nSerial Number,'+MAC_FILTER[0][-5:]+'\nVessel Number,'+vessel_num+'\nDate Format,YYYY-MM-DD\nTime Format,HH24:MI:SS\nTemperature,C\nDepth,m\n')   # create header with logger number
-header_file.close()
+header_file.close() #why not add vessel_name in the header as well and do we want to distinquish header lines from DATA lines? 
 print MAC_FILTER
-scanner = btle.Scanner()
+scanner = btle.Scanner() # what does this command do?  Turns on the bluetooth?
 
 # A dictionary mapping mac address to last communication time. This should ultimately be moved
 # to a file or database. This is a lightweight example.
@@ -64,13 +64,12 @@ func_readgps()  # We need to run function readgps twice to make sure we get at l
 while True:
     print('-'),
     
-    try:
-        
+    try:   
         wifi()
     except:
         time.sleep(1)
     index_times=index_times+1
-    if index_times>=14:
+    if index_times>=14: # does this mean you get a new GPS every 14 seconds?
             index_times=0
             func_readgps()
             
@@ -79,7 +78,7 @@ while True:
             
 
 
-    # Get rid of everything that isn't a MAT1W
+    # Get rid of everything that isn't a MAT1W or MATP
     scan_list =[device for device in scan_list if device.addr in MAC_FILTER]
 
     # Prefer new connections, then the oldest connection
@@ -134,7 +133,7 @@ while True:
             except ValueError:
                 print('ODL-1W returned an invalid time. Clock not checked.')
             else:
-                # Is the clock more than a day off?
+                # Is the clock more than a day off?  Looks like you are actually checking 10 seconds not a full day.
                 if (datetime.datetime.now() - odlw_time).total_seconds() > 10:
                     print('did  Syncing time.')
                     connection.sync_time()
@@ -222,15 +221,15 @@ while True:
             s_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+'('+file_num+')_S.txt'
             df=pd.read_csv(s_file,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse)#creat a new Datetimeindex
 
+            # what are you doing in the next three lines?  Are you just making a copy of the S.txt file?
             os.rename(s_file,'/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt')
             new_file_path='/home/pi/Desktop/towifi/li_'+serial_num+'_'+str(df.index[-1]).replace(':','').replace('-','').replace(' ','_')#folder path store the files to uploaded by wifi
-            
             s_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt'
             
             if len(df)>1000:
                         
                         os.remove(s_file)
-                        print 'data is more than one day, delete'
+                        print 'data is more than one day, delete assuming that this is not a fixed gear application'
                         time.sleep(1800)
                         os.system('sudo rm /home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/*.lid')
                         os.system('sudo reboot')
@@ -238,7 +237,7 @@ while True:
             df1=pd.read_csv(s_file,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse)
             df1.index.names=['datet(GMT)']
             file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
-            column_name=['lat','lon']
+            column_name=['lat','lon'] # where do you use "column_name"?  Can we delete this line?
             df2=pd.read_csv(file2,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse,header=None)
             lat=[]
             lon=[]
@@ -263,7 +262,7 @@ while True:
             
             try:
                 valid='no'
-                boat_type='fishing'  #boat type ,pick one from 'lobster' or 'fish'
+                boat_type='fishing'  #boat type ,pick one from 'lobster' or 'fish' The should be "mobile" or "fixed".
                 valid,st_index,end_index=judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim)
                 print 'valid is '+valid
                 if valid=='yes': #copy good file to 'towifi' floder 
@@ -276,7 +275,7 @@ while True:
                         file_saved=open(new_file_path+'.csv','w')
                         [file_saved.writelines(i) for i in content]
                         file_saved.close()
-                        os.system('cat '+new_file_path+'_S1.csv >> '+new_file_path+'.csv')
+                        os.system('cat '+new_file_path+'_S1.csv >> '+new_file_path+'.csv')# Concantenated monthly file?
                         os.system('rm '+new_file_path+'_S1.csv')
                         print 'file cat finished'
                         #copyfile(s_file,new_file_path+'_S.txt')
@@ -291,7 +290,7 @@ while True:
                 
                 
             except:
-                print "Cannot copy or find the lid,MA or T file,cause no good data"
+                print "Cannot copy or find the lid,cause no good data"
             if valid=='yes':       
                 if transmit=='yes':
                         
@@ -300,9 +299,11 @@ while True:
                                 df=df.ix[(df['Depth (m)']>0.85*mean(df['Depth (m)']))]  # get rid of shallow data
                                 dft=df
                                 #dft=pd.read_csv(new_file_path+'_T.txt')
+                                # gets rid of spikes > 3 std from the mean?
                                 dft=dft.ix[(dft['Temperature (C)']>mean(dft['Temperature (C)'])-3*std(dft['Temperature (C)'])) & (dft['Temperature (C)']<mean(dft['Temperature (C)'])+3*std(dft['Temperature (C)']))]
                                 
                                 maxtemp=str(int(round(max(dft['Temperature (C)'][st_index:end_index]),2)*100))
+                                # to reduce code below, you should consider using Python string.zfill(X) where "X" is the desired number of characaters you want 
                                 if len(maxtemp)<4:
                                             maxtemp='0'+maxtemp
                                 mintemp=str(int(round(min(dft['Temperature (C)'][st_index:end_index]),2)*100))
