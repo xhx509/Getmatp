@@ -1,0 +1,9 @@
+lat,lon,harbor
+4134.2,7037.2, office
+4138.04,7055.2, New Bedford Cuttyhunk
+4138.36,7055.22, New Bedford Fish Island
+4236.756,7039.124,  Gloucester State fish pier
+4236.528,7039.280,  Gloucester Marine Railways
+4122.908,7130.66, PJ State
+
+   
