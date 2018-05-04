@@ -1,15 +1,12 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.11.1
-1,Fix the gps reading problem,to make sure we can get the gps data from receiver
-2,Change control file and harborlist file to make user friendly
+version 12
+1. Fixed the gps reading problem,to make sure we can get the gps data from receiver
+2. Changed control file and harborlist file to make user friendly
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
 Remember !!!!!!  Modify control file!!!!!!!!!!!!! 
 '''
-
-
-
 
 import sys
 sys.path.insert(1, '/home/pi/Desktop/mat_modules')
@@ -28,65 +25,63 @@ import OdlParsing
 import glob
 import logging
 from shutil import copyfile
-from li_parse import parse_li
-from wifiandpic import wifi,judgement2,parse,gps_compare
-from func_readgps import func_readgps
+from li_parse import parse_li  # these are Nick's functions
+from wifiandpic import wifi,judgement2,parse,gps_compare  # these are Huanxin's functions
+from func_readgps import func_readgps # more Huanxin's functions ... Is there a reason they are not in "wifipic"?
 logging.basicConfig()   #enable more verbose logging of errors to console
 if not os.path.exists('/towifi'):
         os.makedirs('/towifi')
-CONNECTION_INTERVAL = 30  # Minimum number of seconds between reconnects
-                                # Set to minutes for lab testing. Set to hours/days for field deployment.
-                                
+# the following two hardcodes have never been changed        
+CONNECTION_INTERVAL = 30  # Minimum number of seconds between reconnects                                  
 LOGGING = False      #Enable log file for debugging Bluetooth COM errors. Deletes old log and creates new ble_log.txt for each connection.
 #########################################################################################################################################
-if 'r' in open('/home/pi/Desktop/mode.txt').read():
+if 'r' or 'R' in open('/home/pi/Desktop/mode.txt').read(): # WHAT IF SOMEONE ENTERS "REAL" in caps??
         file='control_file.txt'
         mode='real'
 else:
         file='test_control_file.txt'
         mode='test'
 f1=open(file,'r')
-logger_timerange_lim=int(f1.readline().split('  ')[0])
+logger_timerange_lim=int(f1.readline().split('  ')[0]) # number of minutes to be considered a good haul
 logger_pressure_lim=int(f1.readline().split('  ')[0])*1.8  #convert from fathom to meter
-transmit=f1.readline().split('  ')[0]
+transmit=f1.readline().split('  ')[0] # yes or no to transmit to satellite
 MAC_FILTER=[f1.readline().split('  ')[0]]
-boat_type=f1.readline().split('  ')[0]
-vessel_num=f1.readline().split('  ')[0]
+boat_type=f1.readline().split('  ')[0] #mobile or fixed
+vessel_num=f1.readline().split('  ')[0] # this typically a 2-digit number assigned by us
 f1.close()
 header_file=open('/home/pi/Desktop/header.csv','w')
 header_file.writelines('Probe Type,Lowell\nSerial Number,'+MAC_FILTER[0][-5:]+'\nVessel Number,'+vessel_num+'\nDate Format,YYYY-MM-DD\nTime Format,HH24:MI:SS\nTemperature,C\nDepth,m\n')   # create header with logger number
 header_file.close()
 print MAC_FILTER
-scanner = btle.Scanner()    #defaut scan func
 print mode
-# A dictionary mapping mac address to last communication time. This should ultimately be moved
-# to a file or database. This is a lightweight example.
-last_connection = {}
-index_times=0
+
+scanner = btle.Scanner()    #defaut scan func
+
 try:
         file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
         os.system('sudo rm '+file2)
         time.sleep(2)
-except:
-        
+except:       
         pass
 func_readgps()  # We need to run function readgps twice to make sure we get at least two gps data in the gps file
 if mode=='real':
-        time.sleep(18)
+        time.sleep(18)# 18 seconds
 else:
         time.sleep(2)
 count_gps=0
 func_readgps()  # We need to run function readgps twice to make sure we get at least two gps data in the gps file
+# A dictionary mapping mac address to last communication time. This should ultimately be moved
+# to a file or database. This is a lightweight example. IS THIS COMMENT OUT OF PLACE?
+last_connection = {}
+index_times=0
+
 while True:
-    print('-'),
-    
-    try:
-        
+    print('-'),  
+    try:      
         wifi()
     except:
         time.sleep(1)
-    try:
-            
+    try:     
             file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
     except:
             func_readgps()
@@ -105,23 +100,19 @@ while True:
                   
     except:
             print 'something wrong with reading gps pulling file, comment that and next line after test'
-            #time.sleep(9999)
-            os.system('sudo rm '+file2)
-            time.sleep(2)
-            func_readgps()
-            time.sleep(15)
-            func_readgps()
-            continue
-    lat_1=float(df2[1][-1][:-1])
-    lon_1=float(df2[2][-1][:-1]) 
-    harbor_point_list=gps_compare(lat_1,lon_1,mode)
+    try:
+        lat_1=float(df2[1][-1][:-1])
+        lon_1=float(df2[2][-1][:-1]) 
+    except:
+        lat_1=9999.99
+        lon_1=9999.99
+    harbor_point_list=gps_compare(lat_1,lon_1,mode)# returns values if this is near a harbor
     if harbor_point_list<>[]:
-            print 'time sleep 1800'
             func_readgps()
-            time.sleep(3600)   # change to 3600 after test
+            time.sleep(3600)   # change to 3600 after test 
             continue
-    index_times=index_times+1
-    if index_times>=12:
+    index_times=index_times+1 # keeps track 
+    if index_times>=12: # this is how we get a new GPS every ~90 seconds
             index_times=0
             func_readgps()
             
