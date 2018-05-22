@@ -306,8 +306,8 @@ while True:
                         
                         try:
                                 
-                                df=df.ix[(df['Depth (m)']>0.85*mean(df['Depth (m)']))]  # get rid of shallow data
-                                dft=df
+                                dft=df.ix[(df['Depth (m)']>0.85*mean(df['Depth (m)']))]  # get rid of shallow data
+                                
                                 #dft=pd.read_csv(new_file_path+'_T.txt')
                                 dft=dft.ix[(dft['Temperature (C)']>mean(dft['Temperature (C)'])-3*std(dft['Temperature (C)'])) & (dft['Temperature (C)']<mean(dft['Temperature (C)'])+3*std(dft['Temperature (C)']))]
                                 
@@ -331,7 +331,7 @@ while True:
                                             timerange='0'+timerange
                                     
                                     # meandepth
-                                meandepth=str(abs(int(round(mean(df['Depth (m)'].values)))))
+                                meandepth=str(abs(int(round(mean(dft['Depth (m)'].values)))))
                                 #print (mean(df['Pressure (psia)'].values)-13.89)/1.457
                                 for k in range(3):
                                         if len(meandepth)<3:
@@ -343,7 +343,7 @@ while True:
                                         meantemp='0'+meantemp
                                     
                                     # rangedepth
-                                rangedepth=str(abs(int(round(max(df['Depth (m)'].values)-min(df['Depth (m)'].values)))))
+                                rangedepth=str(abs(int(round(max(dft['Depth (m)'].values)-min(dft['Depth (m)'].values)))))
                                 #print (max(df['Pressure (psia)'].values)-min(df['Pressure (psia)'].values))/1.457
                                 for k in range(3):
                                         if len(rangedepth)<3:
