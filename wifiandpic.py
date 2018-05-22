@@ -37,12 +37,14 @@ def gmt_to_eastern(times_gmt):
     import datetime
     times=[]
     eastern = pytz.timezone('US/Eastern')
-    gmt = pytz.timezone('GMT')
+    gmt = pytz.timezone('Etc/GMT-4')
     #date = datetime.datetime.strptime(filename, '%a, %d %b %Y %H:%M:%S GMT')
     for i in range(len(times_gmt)):
         date = datetime.datetime.strptime(str(times_gmt[i]),'%Y-%m-%d %H:%M:%S')
+        #date_gmt=eastern.localize(date)
         date_gmt=gmt.localize(date)
         easterndate=date_gmt.astimezone(eastern)
+        #easterndate=date.astimezone(eastern)
         times.append(easterndate)
     return times
 ##################################
@@ -176,7 +178,7 @@ def create_pic():
 
 
                 ax2=fig.add_subplot(212)
-                #df['depth'].plot()
+                
                 ax2.plot(df2.index,df2['Az (g)'].values)
                 ax2.invert_yaxis()
                 ax2.set_ylabel('Angle')
@@ -190,12 +192,9 @@ def create_pic():
                 ax22.set_ylim(1,-1)
                 ax22.invert_yaxis()
 
-                #ax2.xaxis.set_minor_locator(dates.HourLocator(interval=0)
-                #ax2.xaxis.set_minor_formatter(dates.DateFormatter('%H'))
-                #ax2.xaxis.set_major_locator(dates.DayLocator(interval=4))
-                #ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
+     
                 plt.gcf().autofmt_xdate()    
-                ax2.set_xlabel('Local TIME '+df.index[0].strftime('%m/%d/%Y %H:%M:%S')+' - '+df.index[-1].strftime('%m/%d/%Y %H:%M:%S'))
+                ax2.set_xlabel('GMT TIME '+df.index[0].strftime('%m/%d/%Y %H:%M:%S')+' - '+df.index[-1].strftime('%m/%d/%Y %H:%M:%S'))
                 
                 plt.savefig('/home/pi/Desktop/Pictures/'+fn.split('(')[1].split('_')[0]+'/'+fn.split('(')[0][-2:]+fn.split('(')[1][:-6]+'.png')
                 plt.close()
@@ -241,13 +240,9 @@ def p_create_pic():
                 f.close()
             
             upfiles = [line.rstrip('\n') for line in open('uploaded_files/mypicfile.dat','r')]
-            #open('uploaded_files/mypicfile.dat','r').close()
-            
-            #f=open('../uploaded_files/myfile.dat', 'rw')
             dif_data=list(set(files)-set(upfiles))
            
             if dif_data==[]:
-                #print 'no new data found recently, so we will look at old ones'
                 print  'Standby. When the program detects a probe haul, machine will reboot and show new data.'
                 time.sleep(5)
                 pass
@@ -256,77 +251,71 @@ def p_create_pic():
     ##################################
     ##################################
             dif_data.sort(key=os.path.getmtime)
-            #print dif_data
             for fn in dif_data:          
             
                 fn2=fn
-                
-                #print fn
-                
+                              
                 if not os.path.exists('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14]):
                     os.makedirs('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14])
-                df=pd.read_csv(fn,sep=',',skiprows=7,parse_dates={'datet':[0]},index_col='datet',date_parser=parse2)#creat a new Datetimeindex
+                df=pd.read_csv(fn,sep=',',skiprows=7,parse_dates={'datet':[1]},index_col='datet',date_parser=parse2)#creat a new Datetimeindex
                 df2=df
                 df2['Depth (m)']=[x*(-0.5468) for x in df2['Depth (m)'].values]
-                #df['yd']=df.index.dayofyear+df.index.hour/24.+df.index.minute/60./24.+df.index.second/60/60./24.-1.0 #creates a yrday0 field
-                #df2['yd']=df2.index.dayofyear+df2.index.hour/24.+df2.index.minute/60./24.+df2.index.second/60/60./24.-1.0
-                #print len(df2),len(df)
+       
                 if len(df2)<5:
                     continue
-                '''
-                if max(df.index)-min(df.index)>Timedelta('0 days 04:00:00'):
-                    continue
-                '''
-                try: 
-                    index_good=np.where(df2['Depth (m)']<0.70*mean(df['Depth (m)'])) #Attention : If you want to use the angle, change the number under 1.
-                    print index_good[0][3],index_good[0][-3]
-                    index_good_start=index_good[0][3]
-                    index_good_end=index_good[0][-3]
-                    #print 'index_good_start:'+index_good_start+' index_good_end:'+index_good_end
-                except:
 
-                    print "no good data"
-                    os.system('sudo rm '+fn)
-                    pass
-                #df.rename(index=str,columns={"Temperature (C)":"Temperature"}) #change name
-                meantemp=round(np.mean(df['Temperature (C)'][index_good_start:index_good_end]),2)
+                meantemp=round(np.mean(df['Temperature (C)']),2)
                 fig=plt.figure()
                 ax1=fig.add_subplot(211)
                 ax2=fig.add_subplot(212)
                 time_df2=gmt_to_eastern(df2.index)
-                #print time_df2
-
-                #df['temp'].plot()
                 time_df=gmt_to_eastern(df.index)
-                ax1.plot(time_df,df['Temperature (C)'],'b')
+     
+                ax1.plot(time_df,df['Temperature (C)'],'b',)
                 #ax1.plot(df.index[index_good_start:index_good_end],df['Temperature (C)'][index_good_start:index_good_end],'red',linewidth=4,label='in the water')
                 ax1.set_ylabel('Temperature (Celius)')
                 ax1.legend(['temp','in the water'])
-                #print 2222222222222222222222222222222222222222222
+              
+                '''
                 try:    
                             ax1.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
                             ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                             ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                 except:
                             print 'not enough data'
-
+                '''
+                try:    
+                        if max(df.index)-min(df.index)>Timedelta('0 days 04:00:00'):
+                            ax1.xaxis.set_major_locator(dates.HourLocator(interval=(max(df.index)-min(df.index)).seconds/3600/6))# for hourly plot
+                            ax2.xaxis.set_major_locator(dates.HourLocator(interval=(max(df.index)-min(df.index)).seconds/3600/6))# for hourly plot
+                            ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
+                            ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
+                            
+                        else: 
+                            ax1.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
+                            ax2.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
+                            ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
+                            ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
+                except:
+                    print 'too less data'
                 ax1.text(0.9, 0.15, 'mean temperature in the water='+str(round(meantemp*1.8+32,1))+'F',
                             verticalalignment='bottom', horizontalalignment='right',
                             transform=ax1.transAxes,
                             color='green', fontsize=15)    
                 #ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
-                ax1.set_xlabel('')
+                #ax1.set_xlabel('')
                 
                 #ax1.set_ylim(int(np.nanmin(df['Temperature (C)'].values)),int(np.nanmax(df['Temperature (C)'].values)))
-                ax1.set_xticklabels([])
+                
+                #ax1.set_xticklabels([]) #that may occur a bug, to make a plot not running
                 ax1.grid()
                 ax12=ax1.twinx()
                 ax12.set_title(tit)
                 ax12.set_ylabel('Fahrenheit')
                 ax12.set_xlabel('')
-                ax12.set_xticklabels([])
-                ax12.set_ylim(np.nanmin(df['Temperature (C)'].values)*1.8+32,np.nanmax(df['Temperature (C)'].values)*1.8+32)
-
+                #ax12.set_xticklabels([])
+                ax12.set_ylim(np.nanmin(df['Temperature (C)'].values)*1.8+30,np.nanmax(df['Temperature (C)'].values)*1.8+36)
+            
 
                 #df['depth'].plot()
                 ax2.plot(time_df2,df2['Depth (m)'],'b',label='Depth',color='green')
@@ -336,34 +325,24 @@ def p_create_pic():
                 ax2.invert_yaxis()
                 ax2.set_ylabel('Depth(Fathom)')
                 
-                ax2.set_ylim(np.nanmin(df2['Depth (m)'].values),np.nanmax(df2['Depth (m)'].values))
-                ax2.set_ylim()
-                #ax2.set_ylabel('Pressure(psia)')
-                #ax2.set_xlabel(df2.index[0])
+                ax2.set_ylim(np.nanmin(df2['Depth (m)'].values)*1.05,np.nanmax(df2['Depth (m)'].values)*0.95)
+        
                 ax2.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax2.grid()
                 #ax2.set_ylim(-1,1)
                 ax22=ax2.twinx()
                 ax22.set_ylabel('Depth(feet)')
                
-                ax22.set_ylim(np.nanmax(df2['Depth (m)'].values)*6,np.nanmin(df2['Depth (m)'].values)*6)        
-                ax22.set_ylim()
+                ax22.set_ylim(np.nanmax(df2['Depth (m)'].values)*6*0.95,np.nanmin(df2['Depth (m)'].values)*6*1.05)        
+                #ax22.set_ylim()
                 ax22.invert_yaxis()
 
-                #ax2.xaxis.set_minor_locator(dates.HourLocator(interval=0)
-                #ax2.xaxis.set_minor_formatter(dates.DateFormatter('%H'))
-                #ax2.xaxis.set_major_locator(dates.DayLocator(interval=4))
-                #ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
                 plt.gcf().autofmt_xdate()    
-                ax2.set_xlabel('Local TIME '+time_df[0].strftime('%m/%d/%Y %H:%M:%S')+' - '+time_df[-1].strftime('%m/%d/%Y %H:%M:%S'))
-                #print fn.split('/')[-1][2:12]
+                ax2.set_xlabel('TIME '+time_df[0].astimezone(pytz.timezone('UTC')).strftime('%m/%d/%Y %H:%M:%S')+' - '+time_df[-1].astimezone(pytz.timezone('UTC')).strftime('%m/%d/%Y %H:%M:%S'))
+                
                 plt.savefig('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14]+'/'+fn.split('/')[-1][15:21]+'.png')
                 plt.close()
-                #print 'picture is saved'
-                #os.system('sudo rm '+fn)
-                #os.system('sudo rm '+fn2)
-              
-            #upfiles.extend(dif_data)
+
             a=open('uploaded_files/mypicfile.dat','r').close()
             
             a=open('uploaded_files/mypicfile.dat','a+')
@@ -512,25 +491,20 @@ def judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim):
 
 
  
-gpsd = None #seting the global variable
- 
-os.system('clear') #clear the terminal (optional)
- 
-class GpsPoller(threading.Thread):
-  def __init__(self):
-    threading.Thread.__init__(self)
-    global gpsd #bring it in scope
-    gpsd = gps(mode=WATCH_ENABLE) #starting the stream of info
-    self.current_value = None
-    self.running = True #setting the thread running to true
- 
-  def run(self):
-    global gpsd
-    while gpsp.running:
-      gpsd.next() #this will continue to loop and grab EACH set of gpsd info to clear the buffer
- 
+def gps_compare(lat,lon,mode): #check to see if the boat is in the harbor
+    
+    harbor_range=0.4 #box size of latitude and longitude, unit: seconds/10
+    if mode=='test':
+        file2='/home/pi/Desktop/test_harborlist.txt'
+    else:
+        file2='/home/pi/Desktop/harborlist.txt'
+    df2=pd.read_csv(file2,sep=',')
 
+    indice_lat=[i for i ,v in enumerate(abs(np.array(df2['lat'])-lat)<harbor_range) if v]
+    indice_lon=[i for i ,v in enumerate(abs(np.array(df2['lon'])-lon)<harbor_range) if v]
+    harbor_point_list=[i for i, j in zip(indice_lat,indice_lon) if i==j]
 
+    return harbor_point_list
 
 
 

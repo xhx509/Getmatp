@@ -1,12 +1,15 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 12
-1. Fixed the gps reading problem,to make sure we can get the gps data from receiver
-2. Changed control file and harborlist file to make user friendly
+version 0.0.14
+1,Clean the code
+2,fix the plot issue
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
 Remember !!!!!!  Modify control file!!!!!!!!!!!!! 
 '''
+
+
+
 
 import sys
 sys.path.insert(1, '/home/pi/Desktop/mat_modules')
@@ -25,63 +28,65 @@ import OdlParsing
 import glob
 import logging
 from shutil import copyfile
-from li_parse import parse_li  # these are Nick's functions
-from wifiandpic import wifi,judgement2,parse,gps_compare  # these are Huanxin's functions
-from func_readgps import func_readgps # more Huanxin's functions ... Is there a reason they are not in "wifipic"?
+from li_parse import parse_li
+from wifiandpic import wifi,judgement2,parse,gps_compare
+from func_readgps import func_readgps
 logging.basicConfig()   #enable more verbose logging of errors to console
 if not os.path.exists('/towifi'):
         os.makedirs('/towifi')
-# the following two hardcodes have never been changed        
-CONNECTION_INTERVAL = 30  # Minimum number of seconds between reconnects                                  
+CONNECTION_INTERVAL = 7200  # Minimum number of seconds between reconnects
+                                # Set to minutes for lab testing. Set to hours/days for field deployment.
+                                
 LOGGING = False      #Enable log file for debugging Bluetooth COM errors. Deletes old log and creates new ble_log.txt for each connection.
 #########################################################################################################################################
-if 'r' or 'R' in open('/home/pi/Desktop/mode.txt').read(): # WHAT IF SOMEONE ENTERS "REAL" in caps??
+if 'r' in open('/home/pi/Desktop/mode.txt').read():
         file='control_file.txt'
         mode='real'
 else:
         file='test_control_file.txt'
         mode='test'
 f1=open(file,'r')
-logger_timerange_lim=int(f1.readline().split('  ')[0]) # number of minutes to be considered a good haul
+logger_timerange_lim=int(int(f1.readline().split('  ')[0])/1.5)
 logger_pressure_lim=int(f1.readline().split('  ')[0])*1.8  #convert from fathom to meter
-transmit=f1.readline().split('  ')[0] # yes or no to transmit to satellite
+transmit=f1.readline().split('  ')[0]
 MAC_FILTER=[f1.readline().split('  ')[0]]
-boat_type=f1.readline().split('  ')[0] #mobile or fixed
-vessel_num=f1.readline().split('  ')[0] # this typically a 2-digit number assigned by us
+boat_type=f1.readline().split('  ')[0]
+vessel_num=f1.readline().split('  ')[0]
 f1.close()
 header_file=open('/home/pi/Desktop/header.csv','w')
 header_file.writelines('Probe Type,Lowell\nSerial Number,'+MAC_FILTER[0][-5:]+'\nVessel Number,'+vessel_num+'\nDate Format,YYYY-MM-DD\nTime Format,HH24:MI:SS\nTemperature,C\nDepth,m\n')   # create header with logger number
 header_file.close()
 print MAC_FILTER
-print mode
-
 scanner = btle.Scanner()    #defaut scan func
-
+print mode
+# A dictionary mapping mac address to last communication time. This should ultimately be moved
+# to a file or database. This is a lightweight example.
+last_connection = {}
+index_times=0
 try:
         file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
         os.system('sudo rm '+file2)
         time.sleep(2)
-except:       
+except:
+        
         pass
 func_readgps()  # We need to run function readgps twice to make sure we get at least two gps data in the gps file
 if mode=='real':
-        time.sleep(18)# 18 seconds
+        time.sleep(18)
 else:
         time.sleep(2)
 count_gps=0
 func_readgps()  # We need to run function readgps twice to make sure we get at least two gps data in the gps file
-# A dictionary mapping mac address to last communication time. This should ultimately be moved
-# to a file or database. This is a lightweight example. IS THIS COMMENT OUT OF PLACE?
-last_connection = {}
-index_times=0
-
 while True:
-    print('-'),  
-    try:      
+    print('-'),
+    
+    try:
+        
         wifi()
     except:
         time.sleep(1)
-    try:     
+    try:
+            
             file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
     except:
             func_readgps()
@@ -91,32 +96,52 @@ while True:
             file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
     try:
             df2=pd.read_csv(file2,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse,header=None)
-            if len(df2)>600:
-                    os.system('sudo rm '+file2)
-                    time.sleep(2)
-                    func_readgps()
-                    time.sleep(15)
-                    func_readgps()
+            if boat_type=='fish':
+                    if len(df2)>600:
+                            os.system('sudo rm '+file2)
+                            time.sleep(2)
+                            func_readgps()
+                            time.sleep(15)
+                            func_readgps()
                   
     except:
             print 'something wrong with reading gps pulling file, comment that and next line after test'
-    try:
-        lat_1=float(df2[1][-1][:-1])
-        lon_1=float(df2[2][-1][:-1]) 
-    except:
-        lat_1=9999.99
-        lon_1=9999.99
-    harbor_point_list=gps_compare(lat_1,lon_1,mode)# returns values if this is near a harbor
-    if harbor_point_list<>[]:
-            func_readgps()
-            time.sleep(3600)   # change to 3600 after test 
-            continue
-    index_times=index_times+1 # keeps track 
-    if index_times>=12: # this is how we get a new GPS every ~90 seconds
-            index_times=0
-            func_readgps()
             
-    scan_list = scanner.scan(6)  # Scan for 6 seconds
+            os.system('sudo rm '+file2)
+            time.sleep(2)
+            func_readgps()
+            time.sleep(15)
+            func_readgps()
+    try:
+            lat_1=float(df2[1][-1][:-1])
+            lon_1=float(df2[2][-1][:-1])
+    except:
+            lat_1=9999.99
+            lon_1=9999.99
+    harbor_point_list=gps_compare(lat_1,lon_1,mode)
+    if harbor_point_list<>[]:
+            if boat_type=='fish':
+                    
+                    print 'time sleep 3600'
+                    time.sleep(2700)   # change to 3600 after test
+
+            else:
+                    print 'time sleep 600'
+                    time.sleep(600)
+            os.system('sudo rm '+file2)
+            func_readgps()
+            time.sleep(15)
+            func_readgps()
+            continue
+    if boat_type=='fish':
+            index_times=index_times+1
+            if index_times>=12:
+                    index_times=0
+                    func_readgps()
+    else:
+            pass
+                    
+    scan_list = scanner.scan(30)  # Scan for 30 seconds
 
             
 
@@ -232,11 +257,10 @@ while True:
             file_names.sort(key=os.path.getmtime)
 
             file_name=file_names[-1]
-            #file_name2=file_names2[-1]
             print file_name
 
 
-            #file_num =str(max(nums)+1)
+         
             file_num=datetime.datetime.now().strftime("%y%m%d_%H_%M")
         
             
@@ -271,8 +295,7 @@ while True:
             s_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt'
             try:
 
-                        valid='no'
-                        boat_type='fishing'  #boat type ,pick one from 'lobster' or 'fish'
+                        valid='no'  #boat type ,pick one from 'lobster' or 'fish'
                         valid,st_index,end_index=judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim)
                         print 'valid is '+valid
             except:
@@ -343,7 +366,7 @@ while True:
                                             print 333
                                             time.sleep(3)
                                             #ser.writelines('ylb00E'+maxtemp+'D'+mintemp+'C'+meantemp+'B'+sdeviatemp+'0000000000000000000000000000000000000000000000\n')
-                                            ser.writelines('ylb9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'\n')
+                                            ser.writelines('ylb 9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'\n')
                                             time.sleep(2)
                                             print '999'+meandepth+rangedepth+timerange+meantemp+sdeviatemp
                                             time.sleep(4)
@@ -356,57 +379,65 @@ while True:
 
                         except:
                                 print 'no good data'
-            if valid=='yes':        
-                    df1=df
-                    df1.index.names=['datet(GMT)']
-                    #file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
-                    #df2=pd.read_csv(file2,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse,header=None)
-                    lat=[]
-                    lon=[]
-                   
-                    inx=str(min(df2.index,key=lambda d: abs(d-df1.index[0])))
-                    for i in df1.index:
-                            try:
-                                    inx=str(min(df2[inx:].index,key=lambda d: abs(d-i)))
-                                    lat.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][1].values[0])
-                                    lon.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][2].values[0])
-                            except:
-                                    print 'gps time is not matching the logger'
-                                    time.sleep(1000)
-                                    os.system('sudo reboot')
-                    
-                    
-                    df1['lat']=lat
-                    df1['lon']=lon
-                    df1['HEADING']=['DATA' for i in range(len(df1))]      #add header DATA line
-                    df1.reset_index(level=0,inplace=True)
-                    df1.index=df1['HEADING']
-                    df1=df1[['datet(GMT)','lat','lon','Temperature (C)','Depth (m)']]
-                    print 'got the df'
-                    print 'Parse accomplish'
-                    
+            if valid=='yes':
                     try:
-                        if valid=='yes': #copy good file to 'towifi' floder 
-                                copyfile(file_name,new_file_path+').lid')
-                               
-                                df1.to_csv(new_file_path+'_S1.csv')
-                                fh=open('/home/pi/Desktop/header.csv','r')
-                                content=fh.readlines()
-                      
-                                file_saved=open(new_file_path+'.csv','w')
-                                [file_saved.writelines(i) for i in content]
-                                file_saved.close()
-                                os.system('cat '+new_file_path+'_S1.csv >> '+new_file_path+'.csv')
-                                os.system('rm '+new_file_path+'_S1.csv')
-                                print 'file cat finished'
-                                #copyfile(s_file,new_file_path+'_S.txt')
-                        else :
-                                
-                                os.remove(s_file) 
-                    except:
-                        print "Cannot copy or find the lid,MA or T file,cause no good data"
+                    
+                            df1=df
+                            df1.index.names=['datet(GMT)']
+                            #file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
+                            #df2=pd.read_csv(file2,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse,header=None)
+                            lat=[]
+                            lon=[]
+                           
+                            inx=str(min(df2.index,key=lambda d: abs(d-df1.index[0])))
+                            for i in df1.index:
+                                    try:
+                                            if boat_type=='fish':
+                                                    
+                                                    inx=str(min(df2[inx:].index,key=lambda d: abs(d-i)))
+                                                    lat.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][1].values[0])
+                                                    lon.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][2].values[0])
+                                            else:
+                                                    lat.append(lat_1)
+                                                    lon.append(lon_1)
+                                    except:
+                                            print 'gps time is not matching the logger'
+                                            time.sleep(1000)
+                                            os.system('sudo reboot')
+                            
+                            
+                            df1['lat']=lat
+                            df1['lon']=lon
+                            df1['HEADING']=['DATA' for i in range(len(df1))]      #add header DATA line
+                            df1.reset_index(level=0,inplace=True)
+                            df1.index=df1['HEADING']
+                            df1=df1[['datet(GMT)','lat','lon','Temperature (C)','Depth (m)']]
+                            print 'got the df'
+                            print 'Parse accomplish'
+                            
+                            try:
+                                if valid=='yes': #copy good file to 'towifi' floder 
+                                        copyfile(file_name,new_file_path+').lid')
+                                       
+                                        df1.to_csv(new_file_path+'_S1.csv')
+                                        fh=open('/home/pi/Desktop/header.csv','r')
+                                        content=fh.readlines()
+                              
+                                        file_saved=open(new_file_path+'.csv','w')
+                                        [file_saved.writelines(i) for i in content]
+                                        file_saved.close()
+                                        os.system('cat '+new_file_path+'_S1.csv >> '+new_file_path+'.csv')
+                                        os.system('rm '+new_file_path+'_S1.csv')
+                                        print 'file cat finished'
+                                        
+                                else :
+                                        
+                                        os.remove(s_file) 
+                            except:
+                                print "Cannot copy or find the lid,MA or T file,cause no good data"
 
-            
+                    except:
+                            print 'something wrong with gps pulling file'
             import time
             try:
                     os.system('sudo rm /home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/*.lid')
