@@ -37,7 +37,7 @@ def gmt_to_eastern(times_gmt):
     import datetime
     times=[]
     eastern = pytz.timezone('US/Eastern')
-    gmt = pytz.timezone('Etc/GMT-4')
+    gmt = pytz.timezone('GMT')
     #date = datetime.datetime.strptime(filename, '%a, %d %b %Y %H:%M:%S GMT')
     for i in range(len(times_gmt)):
         date = datetime.datetime.strptime(str(times_gmt[i]),'%Y-%m-%d %H:%M:%S')
@@ -166,13 +166,13 @@ def create_pic():
                 ax1.set_xlabel('')
                 
                 #ax1.set_ylim(int(np.nanmin(df['Temperature (C)'].values)),int(np.nanmax(df['Temperature (C)'].values)))
-                ax1.set_xticklabels([])
+                #ax1.set_xticklabels([])
                 ax1.grid()
                 ax12=ax1.twinx()
                 ax12.set_title(tit)
                 ax12.set_ylabel('Fahrenheit')
                 ax12.set_xlabel('')
-                ax12.set_xticklabels([])
+                #ax12.set_xticklabels([])
                 ax12.set_ylim(np.nanmin(df['Temperature (C)'].values)*1.8+32,np.nanmax(df['Temperature (C)'].values)*1.8+32)
 
 
@@ -286,10 +286,11 @@ def p_create_pic():
                 '''
                 try:    
                         if max(df.index)-min(df.index)>Timedelta('0 days 04:00:00'):
-                            ax1.xaxis.set_major_locator(dates.HourLocator(interval=(max(df.index)-min(df.index)).seconds/3600/6))# for hourly plot
-                            ax2.xaxis.set_major_locator(dates.HourLocator(interval=(max(df.index)-min(df.index)).seconds/3600/6))# for hourly plot
-                            ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
-                            ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
+                            ax1.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/4))# for hourly plot
+                            ax2.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/4))# for hourly plot
+                            
+                            ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
+                            ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
                             
                         else: 
                             ax1.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
@@ -297,7 +298,7 @@ def p_create_pic():
                             ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                             ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                 except:
-                    print 'too less data'
+                    print ' '
                 ax1.text(0.9, 0.15, 'mean temperature in the water='+str(round(meantemp*1.8+32,1))+'F',
                             verticalalignment='bottom', horizontalalignment='right',
                             transform=ax1.transAxes,
@@ -308,6 +309,7 @@ def p_create_pic():
                 #ax1.set_ylim(int(np.nanmin(df['Temperature (C)'].values)),int(np.nanmax(df['Temperature (C)'].values)))
                 
                 #ax1.set_xticklabels([]) #that may occur a bug, to make a plot not running
+                
                 ax1.grid()
                 ax12=ax1.twinx()
                 ax12.set_title(tit)
@@ -338,7 +340,7 @@ def p_create_pic():
                 ax22.invert_yaxis()
 
                 plt.gcf().autofmt_xdate()    
-                ax2.set_xlabel('TIME '+time_df[0].astimezone(pytz.timezone('UTC')).strftime('%m/%d/%Y %H:%M:%S')+' - '+time_df[-1].astimezone(pytz.timezone('UTC')).strftime('%m/%d/%Y %H:%M:%S'))
+                ax2.set_xlabel('TIME '+time_df[0].astimezone(pytz.timezone('US/Eastern')).strftime('%m/%d/%Y %H:%M:%S')+' - '+time_df[-1].astimezone(pytz.timezone('US/Eastern')).strftime('%m/%d/%Y %H:%M:%S'))
                 
                 plt.savefig('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14]+'/'+fn.split('/')[-1][15:21]+'.png')
                 plt.close()
