@@ -37,7 +37,7 @@ def gmt_to_eastern(times_gmt):
     import datetime
     times=[]
     eastern = pytz.timezone('US/Eastern')
-    gmt = pytz.timezone('GMT')
+    gmt = pytz.timezone('Etc/GMT')
     #date = datetime.datetime.strptime(filename, '%a, %d %b %Y %H:%M:%S GMT')
     for i in range(len(times_gmt)):
         date = datetime.datetime.strptime(str(times_gmt[i]),'%Y-%m-%d %H:%M:%S')
@@ -286,17 +286,22 @@ def p_create_pic():
                 '''
                 try:    
                         if max(df.index)-min(df.index)>Timedelta('0 days 04:00:00'):
+                            ax1.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/12))# for hourly plot
+                            ax2.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/12))# for hourly plot
+                            
+                            #ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
+                            #ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
+                            
+                        else:
                             ax1.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/4))# for hourly plot
                             ax2.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/4))# for hourly plot
                             
-                            ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
-                            ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
-                            
-                        else: 
-                            ax1.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
-                            ax2.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
-                            ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
-                            ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
+                            #ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
+                            #ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
+                            #ax1.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
+                            #ax2.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
+                            #ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
+                            #ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                 except:
                     print ' '
                 ax1.text(0.9, 0.15, 'mean temperature in the water='+str(round(meantemp*1.8+32,1))+'F',
@@ -443,7 +448,7 @@ def judgement(boat_type,ma_file,t_file):
         index_good_start=index_better[-1]
         index_good_end=index_good[0][-1]+1
         print 'index_good_start:'+str(index_good_start)+' index_good_end:'+str(index_good_end)
-        if boat_type=='lobster':
+        if boat_type=='fixed':
             if index_good_end-index_good_start<60:  #100 means 200 minutes
                 print 'too less data, not in the sea'
                 return valid,index_good_start,index_good_end
@@ -470,8 +475,9 @@ def judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim):
         
         index_good_start=1
         index_good_end=len(df)-1
-        if boat_type=='lobster':
-            if len(df)<40:  #100 means 100 minutes
+        if boat_type<>'mobile':
+            index_good=np.where(abs(df['Depth (m)'])>logger_pressure_lim)
+            if len(index_good[0])<logger_timerange_lim:  #100 means 150 minutes
                 print 'too less data, not in the sea'
                 return valid,index_good_start,index_good_end
             else:

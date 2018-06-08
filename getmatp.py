@@ -1,9 +1,10 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.14
+version 0.0.16
 1,Clean the code
 2,fix the plot issue
+3, change boat type to mobile and fixed
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
 Remember !!!!!!  Modify control file!!!!!!!!!!!!! 
 '''
@@ -96,7 +97,7 @@ while True:
             file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
     try:
             df2=pd.read_csv(file2,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse,header=None)
-            if boat_type=='fish':
+            if boat_type=='mobile':
                     if len(df2)>600:
                             os.system('sudo rm '+file2)
                             time.sleep(2)
@@ -120,7 +121,7 @@ while True:
             lon_1=9999.99
     harbor_point_list=gps_compare(lat_1,lon_1,mode)
     if harbor_point_list<>[]:
-            if boat_type=='fish':
+            if boat_type=='mobile':
                     
                     print 'time sleep 3600'
                     time.sleep(2700)   # change to 3600 after test
@@ -133,7 +134,7 @@ while True:
             time.sleep(15)
             func_readgps()
             continue
-    if boat_type=='fish':
+    if boat_type=='mobile':
             index_times=index_times+1
             if index_times>=12:
                     index_times=0
@@ -295,7 +296,7 @@ while True:
             s_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt'
             try:
 
-                        valid='no'  #boat type ,pick one from 'lobster' or 'fish'
+                        valid='no'  #boat type ,pick one from 'lobster' or 'mobile'
                         valid,st_index,end_index=judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim)
                         print 'valid is '+valid
             except:
@@ -324,7 +325,11 @@ while True:
                                 for k in range(4):
                                           if len(sdeviatemp)<4:
                                             sdeviatemp='0'+sdeviatemp
-                                timerange=str(int(end_index-st_index))
+                                if   boat_type=='mobile':
+                                        
+                                        timerange=str(int((end_index-st_index)/1.5)) #logger time interval is 90 seconds
+                                else:
+                                        timerange=str(int((end_index-st_index)/1.5/60)) #logger time interval is 90 seconds
                                 #time_len=str(int(round((df['yd'][-1]-df['yd'][0]),3)*1000))
                                 for k in range(3):
                                         if len(timerange)<3:
@@ -392,7 +397,7 @@ while True:
                             inx=str(min(df2.index,key=lambda d: abs(d-df1.index[0])))
                             for i in df1.index:
                                     try:
-                                            if boat_type=='fish':
+                                            if boat_type=='mobile':
                                                     
                                                     inx=str(min(df2[inx:].index,key=lambda d: abs(d-i)))
                                                     lat.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][1].values[0])
