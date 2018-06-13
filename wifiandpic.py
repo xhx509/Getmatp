@@ -1,5 +1,5 @@
-# routine to process Aquatech 530TD data
-# modeled after Yacheng's "emolt_pd.py"
+# set of functions used in generating plots in the wheelhouse
+# with program running parallel with "getmatp"
 # where it plots the record and generates output file
 #
 import glob
@@ -47,24 +47,23 @@ def gmt_to_eastern(times_gmt):
         #easterndate=date.astimezone(eastern)
         times.append(easterndate)
     return times
-##################################
-# HARDCODE input file name and output file name
-#fn='/net/data5/jmanning/aquatech/asc/Logger_sn_1724-2_data_20130531_114257_2' # where I have deleted the "units" row to make it easier
-#fnout='arm0215'
-#sn='1742-2'
-#fn='/net/data5/jmanning/aquatech/asc/Logger_sn_1724-4_data_20130329_152208_2' # where I have deleted the "units" row to make it easier
-#fnout='ata1515'
-#sn='1742-4'
-#tit='Marc Palombo on Georges Bank'
-#######################################
-#fn=event.src_path # where I have deleted the "units" row and fixed date to make it easier
-#print fn
+def getclim(lat1,lon1,yrday=dt.now().strftime('%j'),var='Bottom_Temperature/BT_'): 
+  # gets climatology of Bottom_Temperature, Surface_Temperature, Bottom_Salinity, or Surface_Salinity
+  # as calculated by Chris Melrose from 30+ years of NEFSC CTD data on the NE Shelf provided to JiM in May 2018 
+  # where "lat1", "lon1", and "yrday" are the position and yearday of interest (defaulting to today)
+  # where "var" is the variable of interest (defaulting to Bottom_Temperature) 
+  # inputdir='/net/data5/jmanning/clim/' # hardcoded directory name where you need to explode the "Data for Manning.zip"
+  # assumes an indidividual file is stored in the "<inputdir>/<var>" directory for each yearday
+  inputdir='/home/pi/clim/' # hardcoded directory name
+  dflat=pd.read_csv(inputdir+'LatGrid.csv',header=None)
+  dflon=pd.read_csv(inputdir+'LonGrid.csv',header=None)
+  lat=np.array(dflat[0])   # gets the first col (35 to 45)
+  lon=np.array(dflon.ix[0])# gets the first row (-75 to -65)
+  clim=pd.read_csv(inputdir+var+yrday+'.csv',header=None) # gets bottom temp for this day of year
+  idlat = np.abs(lat - lat1).argmin() # finds the neareast lat to input lat1
+  idlon = np.abs(lon - lon1).argmin() # finds the neareast lon to input lon1
+  return clim[idlon][idlat]
 
-######################################
-'''
-Modify input file below only if you need 
-'''
-####################################
 def create_pic():
 
       tit='Temperature and Angle'
