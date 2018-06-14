@@ -1,5 +1,5 @@
-# routine to process Aquatech 530TD data
-# modeled after Yacheng's "emolt_pd.py"
+# set of functions used in generating plots in the wheelhouse
+# with program running parallel with "getmatp.py" call "wxpage.py"
 # where it plots the record and generates output file
 #
 import glob
@@ -47,24 +47,49 @@ def gmt_to_eastern(times_gmt):
         #easterndate=date.astimezone(eastern)
         times.append(easterndate)
     return times
-##################################
-# HARDCODE input file name and output file name
-#fn='/net/data5/jmanning/aquatech/asc/Logger_sn_1724-2_data_20130531_114257_2' # where I have deleted the "units" row to make it easier
-#fnout='arm0215'
-#sn='1742-2'
-#fn='/net/data5/jmanning/aquatech/asc/Logger_sn_1724-4_data_20130329_152208_2' # where I have deleted the "units" row to make it easier
-#fnout='ata1515'
-#sn='1742-4'
-#tit='Marc Palombo on Georges Bank'
-#######################################
-#fn=event.src_path # where I have deleted the "units" row and fixed date to make it easier
-#print fn
+def dm2dd(lat,lon):
+    #converts lat, lon from decimal degrees,minutes to decimal degrees
+    (a,b)=divmod(float(lat),100.)   
+    aa=int(a)
+    bb=float(b)
+    lat_value=aa+bb/60.
+    if float(lon)<0:
+        (c,d)=divmod(abs(float(lon)),100.)
+        cc=int(c)
+        dd=float(d)
+        lon_value=cc+(dd/60.)
+        lon_value=-lon_value
+    else:
+        (c,d)=divmod(float(lon),100.)
+        cc=int(c)
+        dd=float(d)
+        lon_value=cc+(dd/60.)
+    return lat_value, -lon_value
+def c2f(*c):
+    #convert Celsius to Fahrenheit
+    f = [(i * 1.8 + 32) for i in c]
+    return f
+def getclim(*lat1,*lon1,yrday=dt.now().strftime('%j'),var='Bottom_Temperature/BT_'): 
+    # gets climatology of Bottom_Temperature, Surface_Temperature, Bottom_Salinity, or Surface_Salinity
+    # as calculated by Chris Melrose from 30+ years of NEFSC CTD data on the NE Shelf provided to JiM in May 2018 
+    # where "lat1", "lon1", and "yrday" are the position and yearday of interest (defaulting to today)
+    # where "var" is the variable of interest (defaulting to Bottom_Temperature) 
+    # inputdir='/net/data5/jmanning/clim/' # hardcoded directory name where you need to explode the "Data for Manning.zip"
+    # assumes an indidividual file is stored in the "<inputdir>/<var>" directory for each yearday
+    inputdir='/home/pi/clim/' # hardcoded directory name
+    dflat=pd.read_csv(inputdir+'LatGrid.csv',header=None)
+    dflon=pd.read_csv(inputdir+'LonGrid.csv',header=None)
+    lat=np.array(dflat[0])   # gets the first col (35 to 45)
+    lon=np.array(dflon.ix[0])# gets the first row (-75 to -65)
+    clim=pd.read_csv(inputdir+var+yrday+'.csv',header=None) # gets bottom temp for this day of year
+    if not lat1: #look for a lat& lon in the latest csv file
+      files=sorted(glob.glob(inputdir_csv+'*.csv')) # gets all the csv files in the towfi directory
+      dfcsv=pd.read_csv(files[-1],sep=',',skiprows=7)
+      [lat1,lon1]=dm2dd(float(dfcsv['lat'][0][0:-1]),float(dfcsv['lon'][0][0:-1]))
+    idlat = np.abs(lat - lat1).argmin() # finds the neareast lat to input lat1
+    idlon = np.abs(lon - lon1).argmin() # finds the neareast lon to input lon1
+    return clim[idlon][idlat]
 
-######################################
-'''
-Modify input file below only if you need 
-'''
-####################################
 def create_pic():
 
       tit='Temperature and Angle'
@@ -304,7 +329,8 @@ def p_create_pic():
                             #ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                 except:
                     print ' '
-                ax1.text(0.9, 0.15, 'mean temperature in the water='+str(round(meantemp*1.8+32,1))+'F',
+                clim=getclim()# extracts climatological values at this place and yearday
+                ax1.text(0.9, 0.15, 'mean temperature ='+str(round(c2f(meantemp),1))+'F Climatology ='+str(round(c2f(clim),1))+'F',
                             verticalalignment='bottom', horizontalalignment='right',
                             transform=ax1.transAxes,
                             color='green', fontsize=15)    
