@@ -309,50 +309,15 @@ while True:
                                 
                                 dft=df.ix[(df['Depth (m)']>0.85*mean(df['Depth (m)']))]  # get rid of shallow data
                                 
-                                #dft=pd.read_csv(new_file_path+'_T.txt')
                                 dft=dft.ix[(dft['Temperature (C)']>mean(dft['Temperature (C)'])-3*std(dft['Temperature (C)'])) & (dft['Temperature (C)']<mean(dft['Temperature (C)'])+3*std(dft['Temperature (C)']))]
-                                
-                                maxtemp=str(int(round(max(dft['Temperature (C)'][st_index:end_index]),2)*100))
-                                if len(maxtemp)<4:
-                                            maxtemp='0'+maxtemp
-                                mintemp=str(int(round(min(dft['Temperature (C)'][st_index:end_index]),2)*100))
-                                if len(mintemp)<4:
-                                            mintemp='0'+mintemp
-                                meantemp=str(int(round(np.mean(dft['Temperature (C)'][st_index:end_index]),2)*100))
-                                if len(meantemp)<3:
-                                            meantemp='0'+meantemp
-                                sdeviatemp=str(int(round(np.std(dft['Temperature (C)'][st_index:end_index]),2)*100))
-                                for k in range(4):
-                                          if len(sdeviatemp)<4:
-                                            sdeviatemp='0'+sdeviatemp
+                                meantemp=str(int(round(np.mean(dft['Temperature (C)'][st_index:end_index]),2)*100)).zfill(4)
+                                sdeviatemp=str(int(round(np.std(dft['Temperature (C)'][st_index:end_index]),2)*100)).zfill(4)
                                 if   boat_type=='mobile':
-                                        
-                                        timerange=str(int((end_index-st_index)/1.5)) #logger time interval is 90 seconds
+                                        timerange=str(int((end_index-st_index)/1.5/60)).zfill(3) #assumes logger time interval is 1.5 minutes
                                 else:
-                                        timerange=str(int((end_index-st_index)/1.5/60)) #logger time interval is 90 seconds
-                                #time_len=str(int(round((df['yd'][-1]-df['yd'][0]),3)*1000))
-                                for k in range(3):
-                                        if len(timerange)<3:
-                                            timerange='0'+timerange
-                                    
-                                    # meandepth
-                                meandepth=str(abs(int(round(mean(dft['Depth (m)'].values)))))
-                                #print (mean(df['Pressure (psia)'].values)-13.89)/1.457
-                                for k in range(3):
-                                        if len(meandepth)<3:
-                                            meandepth='0'+meandepth
-                                    
-                                    # meantemp
-                                meantemp=str(int(round(mean(dft['Temperature (C)'].values),2)*100))
-                                if len(meantemp)<4:
-                                        meantemp='0'+meantemp
-                                    
-                                    # rangedepth
-                                rangedepth=str(abs(int(round(max(dft['Depth (m)'].values)-min(dft['Depth (m)'].values)))))
-                                #print (max(df['Pressure (psia)'].values)-min(df['Pressure (psia)'].values))/1.457
-                                for k in range(3):
-                                        if len(rangedepth)<3:
-                                            rangedepth='0'+rangedepth
+                                        timerange=str(int((end_index-st_index)/1.5)).zfill(3) #logger time interval is 1.5 minutes put in hours
+                                meandepth=str(abs(int(round(mean(dft['Depth (m)'].values))))).zfill(3)
+                                rangedepth=str(abs(int(round(max(dft['Depth (m)'].values)-min(dft['Depth (m)'].values)))))zfill(3)
                                 print 'meandepth'+meandepth+'rangedepth'+rangedepth+'timerange'+timerange+'temp'+meantemp+'sdev'+sdeviatemp
                                 try:
                                      
