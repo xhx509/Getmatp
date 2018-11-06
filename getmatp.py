@@ -1,16 +1,23 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.16
-1,Clean the code
-2,fix the plot issue
-3, change boat type to mobile and fixed
+version 0.0.25 update on 10/31/2018
+1 automatic update from  new server
+2 fix error of timerange in transmission data
+3 fix the clim reading plot for both mobile and fixed, clim function sort reading location csv file by generation time
+4 add CONNECTION_INTERVAL to the control file
+5 fix program updates problem to make sure that we can get download the program file
+6 compatible with 7b17 and all loggers
+7 compatible with weather station
+8 on raspberry pi b+?
+9 Give time sleep good names
+10 delay 3 minutes to calculate bottom temp.
+11, get rid of shallow data by 85% of max
+12,
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
-Remember !!!!!!  Modify control file!!!!!!!!!!!!! 
+Remember !!!!!!  Modify control file!!!!!!!!!!!!!
+updates 
 '''
-
-
-
 
 import sys
 sys.path.insert(1, '/home/pi/Desktop/mat_modules')
@@ -28,6 +35,8 @@ from pylab import mean, std
 import OdlParsing
 import glob
 import logging
+from subprocess import check_output
+import psutil
 from shutil import copyfile
 from li_parse import parse_li
 from wifiandpic import wifi,judgement2,parse,gps_compare
@@ -35,9 +44,20 @@ from func_readgps import func_readgps
 logging.basicConfig()   #enable more verbose logging of errors to console
 if not os.path.exists('/towifi'):
         os.makedirs('/towifi')
-CONNECTION_INTERVAL = 7200  # Minimum number of seconds between reconnects
+#################################### Time Sleep List#############################       
+CONNECTION_INTERVAL = 1000  # Minimum number of seconds between reconnects
                                 # Set to minutes for lab testing. Set to hours/days for field deployment.
-                                
+
+CONNECTION_INTERVAL_After_success_data_transfer=1500
+interval_before_program_run=400
+scan_interval=6
+habor_time_sleep_mobile=1500
+habor_time_sleep_fixed=600
+gps_reading_interval=90
+interval_between_failed=1500
+
+##################################################################################
+
 LOGGING = False      #Enable log file for debugging Bluetooth COM errors. Deletes old log and creates new ble_log.txt for each connection.
 #########################################################################################################################################
 if 'r' in open('/home/pi/Desktop/mode.txt').read():
@@ -53,9 +73,15 @@ transmit=f1.readline().split('  ')[0]
 MAC_FILTER=[f1.readline().split('  ')[0]]
 boat_type=f1.readline().split('  ')[0]
 vessel_num=f1.readline().split('  ')[0]
+vessel_name=f1.readline().split('  ')[0]
+tilt=f1.readline().split('  ')[0]
+try:
+        CONNECTION_INTERVAL=int(f1.readline().split('  ')[0])
+except:
+        pass
 f1.close()
 header_file=open('/home/pi/Desktop/header.csv','w')
-header_file.writelines('Probe Type,Lowell\nSerial Number,'+MAC_FILTER[0][-5:]+'\nVessel Number,'+vessel_num+'\nDate Format,YYYY-MM-DD\nTime Format,HH24:MI:SS\nTemperature,C\nDepth,m\n')   # create header with logger number
+header_file.writelines('Probe Type,Lowell\nSerial Number,'+MAC_FILTER[0][-5:]+'\nVessel Number,'+vessel_num+'\nVessel Name,'+vessel_name+'\nDate Format,YYYY-MM-DD\nTime Format,HH24:MI:SS\nTemperature,C\nDepth,m\n')   # create header with logger number
 header_file.close()
 print MAC_FILTER
 scanner = btle.Scanner()    #defaut scan func
@@ -64,6 +90,7 @@ print mode
 # to a file or database. This is a lightweight example.
 last_connection = {}
 index_times=0
+
 try:
         file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
         os.system('sudo rm '+file2)
@@ -72,10 +99,10 @@ except:
         
         pass
 func_readgps()  # We need to run function readgps twice to make sure we get at least two gps data in the gps file
-if mode=='real':
-        time.sleep(18)
+if mode=='real' and boat_type=='mobile':
+        time.sleep(interval_before_program_run)
 else:
-        time.sleep(2)
+        time.sleep(1)
 count_gps=0
 func_readgps()  # We need to run function readgps twice to make sure we get at least two gps data in the gps file
 while True:
@@ -124,26 +151,27 @@ while True:
             if boat_type=='mobile':
                     
                     print 'time sleep 3600'
-                    time.sleep(2700)   # change to 3600 after test
+                    time.sleep(habor_time_sleep_mobile)   # change to 3600 after test
 
             else:
                     print 'time sleep 600'
-                    time.sleep(600)
+                    time.sleep(habor_time_sleep_fixed)
             os.system('sudo rm '+file2)
             func_readgps()
             time.sleep(15)
             func_readgps()
             continue
-    if boat_type=='mobile':
-            index_times=index_times+1
-            if index_times>=12:
+    #if boat_type=='mobile':
+    index_times=index_times+1
+    if index_times>=gps_reading_interval/7:
                     index_times=0
                     func_readgps()
     else:
             pass
-                    
-    scan_list = scanner.scan(30)  # Scan for 30 seconds
-
+    try:
+            scan_list = scanner.scan(scan_interval)  # Scan for 6 seconds
+    except:
+            os.system('sudo reboot')
             
 
 
@@ -195,6 +223,7 @@ while True:
             #Increase the BLE connection speed
             print('Increasing BLE speed.')
             connection.control_command('T,0006,0000,0064')  #set latency and timeouts in RN4020 to minimums
+            time.sleep(2) # Delay 2 seconds to allow MLDP status string to clear
 
             # Make sure the clock is within range, otherwise sync it
             try:
@@ -216,10 +245,13 @@ while True:
 
             # Download any .lis files that aren't found locally
             folder = mac.replace(':', '-').lower()  # create a subfolder with the ODL-1W's unique mac address
-            serial_num=folder[-2:]
+            
+            
+            
             if not os.path.exists(folder):
                 os.makedirs(folder)
-
+            serial_num=folder[-5:].replace('-','')
+            print serial_num
             print('Requesting file list')
             files = connection.list_files()  # get a list of files on the ODLW
             files.reverse()
@@ -254,7 +286,7 @@ while True:
             time.sleep(2) #2 second delay to write header of new data file
             last_connection[mac] = time.time()  # keep track of the time of the last communication
             print('Disconnecting')
-            file_names=glob.glob('/home/pi/Desktop/00-1e-c0-3d-*-'+serial_num+'/*.lid')
+            file_names=glob.glob('/home/pi/Desktop/'+folder+'/*.lid')
             file_names.sort(key=os.path.getmtime)
 
             file_name=file_names[-1]
@@ -265,13 +297,13 @@ while True:
             file_num=datetime.datetime.now().strftime("%y%m%d_%H_%M")
         
             
-            os.rename(file_name,'/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+'('+file_num+').lid')
+            os.rename(file_name,'/home/pi/Desktop/'+folder+'/'+serial_num+'('+file_num+').lid')
            
-            file_name='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+'('+file_num+').lid'
+            file_name='/home/pi/Desktop/'+folder+'/'+serial_num+'('+file_num+').lid'
 
             print file_name
             # Example - extract five-minute averaged temperature data from binary file
-            print('Extracting five-minute averaged temperature data...')
+            print('Extracting 1.5-minute averaged temperature data...')
             try:
                     parse_li(file_name)  # default out_path
             except:
@@ -279,7 +311,7 @@ while True:
                     time.sleep(900)
                     print "remove lid file in 100 seconds"
                     time.sleep(100)
-                    os.system('sudo rm /home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/*.lid')
+                    os.system('sudo rm /home/pi/Desktop/'+folder+'/*.lid')
                     os.system('sudo reboot')
                     
             # Example - extract full resolution temperature data for Aug 4, 2014
@@ -287,13 +319,13 @@ while True:
             start = datetime.datetime(2011, 8, 1)  # create datetime objects for start and end time
             end = datetime.datetime(2030, 8, 3)
             
-            s_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+'('+file_num+')_S.txt'
+            s_file='/home/pi/Desktop/'+folder+'/'+serial_num+'('+file_num+')_S.txt'
             df=pd.read_csv(s_file,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse)#creat a new Datetimeindex
 
-            os.rename(s_file,'/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt')
+            os.rename(s_file,'/home/pi/Desktop/'+folder+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt')
             new_file_path='/home/pi/Desktop/towifi/li_'+serial_num+'_'+str(df.index[-1]).replace(':','').replace('-','').replace(' ','_')#folder path store the files to uploaded by wifi
             
-            s_file='/home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt'
+            s_file='/home/pi/Desktop/'+folder+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt'
             try:
 
                         valid='no'  #boat type ,pick one from 'lobster' or 'mobile'
@@ -307,18 +339,47 @@ while True:
                         
                         try:
                                 
-                                dft=df.ix[(df['Depth (m)']>0.85*mean(df['Depth (m)']))]  # get rid of shallow data
-                                
-                                dft=dft.ix[(dft['Temperature (C)']>mean(dft['Temperature (C)'])-3*std(dft['Temperature (C)'])) & (dft['Temperature (C)']<mean(dft['Temperature (C)'])+3*std(dft['Temperature (C)']))]
+                                dft=df.ix[(df['Depth (m)']>0.85*max(df['Depth (m)']))]  # get rid of shallow data
+                                if mode=='real':
+                                    dft=dft.ix[2:]   #delay several minutes to let temperature sensor record the real bottom temp
+                                if boat_type<>'fixed':
+                                    dft=dft.ix[(dft['Temperature (C)']>mean(dft['Temperature (C)'])-3*std(dft['Temperature (C)'])) & (dft['Temperature (C)']<mean(dft['Temperature (C)'])+3*std(dft['Temperature (C)']))]
+                                #a=df['Temperature (C)'].resample("D",how=['count','mean'],loffset=datetime.timedelta(hours=12))
+                                #a.ix[a['count']<900,['mean']]='nan'
                                 meantemp=str(int(round(np.mean(dft['Temperature (C)'][st_index:end_index]),2)*100)).zfill(4)
                                 sdeviatemp=str(int(round(np.std(dft['Temperature (C)'][st_index:end_index]),2)*100)).zfill(4)
-                                if   boat_type=='mobile':
-                                        timerange=str(int((end_index-st_index)/1.5/60)).zfill(3) #assumes logger time interval is 1.5 minutes
+                                if   boat_type=='fixed':
+                                        timerange=str(int((end_index-st_index)*1.5/60)).zfill(3) #assumes logger time interval is 1.5 minutes,the result unit is in hours
                                 else:
-                                        timerange=str(int((end_index-st_index)/1.5)).zfill(3) #logger time interval is 1.5 minutes put in hours
+                                        timerange=str(int((end_index-st_index)*1.5)).zfill(3) #logger time interval is 1.5 minutes put in hours
                                 meandepth=str(abs(int(round(mean(dft['Depth (m)'].values))))).zfill(3)
-                                rangedepth=str(abs(int(round(max(dft['Depth (m)'].values)-min(dft['Depth (m)'].values)))))zfill(3)
-                                print 'meandepth'+meandepth+'rangedepth'+rangedepth+'timerange'+timerange+'temp'+meantemp+'sdev'+sdeviatemp
+                                rangedepth=str(abs(int(round(max(dft['Depth (m)'].values)-min(dft['Depth (m)'].values))))).zfill(3)
+                                print 'meandepth'+meandepth+'rangedepth'+rangedepth+'timerange'+timerange+'temp'+meantemp+'sdev'+sdeviatemp+' logger name'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]
+                                daily_ave=''
+                                if boat_type=='fixed':
+                                    tsod=dft.resample('D',how=['count','mean','median','min','max','std'],loffset=datetime.timedelta(hours=-12)) #creates daily averages,'-12' does not mean anything, only shows on datetime result 
+                                    tsod=dft.resample('D',how=['mean'],loffset=datetime.timedelta(hours=-12))
+                                    if len(tsod)>5:
+                                        #temp5=[str(i).rjust(4,'f') for i in tsod.iloc[-5:]['Temperature (C)']['mean']]
+                                        temp5=[str(int(round(float(i),2)*100)).zfill(4) for i in tsod.iloc[-6:-1]['Temperature (C)']['mean']]
+                                        #tsod.ix[tsod['count']<minnumperday,['mean','median','min','max','std']] = 'NaN' # set daily averages to not-a-number if not enough went into it
+                                    else:
+                                        temp5=[str(int(round(float(i),2)*100)).zfill(4) for i in tsod.iloc[:-1]['Temperature (C)']['mean']]
+                               
+                                
+                                    for i in temp5:
+                                        daily_ave+=i
+                                    print daily_ave
+                                '''  
+                                try:
+                                        x=[p.pid for p in psutil.process_iter() if 'sudo' in str(p.name)]  #To terminate weather station program in background
+                                        p1=psutil.Process(x[1])
+                                        p1.terminate()
+                                        print 'the weather station is closed '
+                                except:
+                                        print "no weather station is running in background"
+                                '''
+                                time.sleep(1)        
                                 try:
                                      
                                             ports='tty-huanxintrans'
@@ -335,10 +396,13 @@ while True:
                                             ser.writelines('i\n')
                                             print 333
                                             time.sleep(3)
-                                            #ser.writelines('ylb00E'+maxtemp+'D'+mintemp+'C'+meantemp+'B'+sdeviatemp+'0000000000000000000000000000000000000000000000\n')
-                                            ser.writelines('ylb 9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'\n')
+                                            old_ap3_boat=['linda_marie','mary_k','mystic']
+                                            if vessel_name in old_ap3_boat:
+                                                    ser.writelines('ylb9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]+daily_ave+'\n')
+                                            else:
+                                                    ser.writelines('ylb 9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]+daily_ave+'\n')
                                             time.sleep(2)
-                                            print '999'+meandepth+rangedepth+timerange+meantemp+sdeviatemp
+                                            print '999'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]
                                             time.sleep(4)
                                             
                                             
@@ -365,8 +429,8 @@ while True:
                                             if boat_type=='mobile':
                                                     
                                                     inx=str(min(df2[inx:].index,key=lambda d: abs(d-i)))
-                                                    lat.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][1].values[0])
-                                                    lon.append(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][2].values[0])
+                                                    lat.append(float(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][1].values[0][:-1]))
+                                                    lon.append(float(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][2].values[0][:-1]))
                                             else:
                                                     lat.append(lat_1)
                                                     lon.append(lon_1)
@@ -387,7 +451,7 @@ while True:
                             
                             try:
                                 if valid=='yes': #copy good file to 'towifi' floder 
-                                        copyfile(file_name,new_file_path+').lid')
+                                        copyfile(file_name,new_file_path+'.lid')
                                        
                                         df1.to_csv(new_file_path+'_S1.csv')
                                         fh=open('/home/pi/Desktop/header.csv','r')
@@ -410,13 +474,13 @@ while True:
                             print 'something wrong with gps pulling file'
             import time
             try:
-                    os.system('sudo rm /home/pi/Desktop/00-1e-c0-3d-7a-'+serial_num+'/*.lid')
+                    os.system('sudo rm /home/pi/Desktop/'+folder+'/*.lid')
             except:
                     print 'no lid file'
             if valid=='yes':
                     print 'ok,all set'
                     os.system('sudo rm '+file2)
-                    os.remove(s_file)
+                    #os.remove(s_file)
                     time.sleep(2)
                     
                     
@@ -424,10 +488,10 @@ while True:
             else:
                     print 'time sleep 1500'
                     os.system('sudo rm '+file2)
-                    for l in range (17):
-                            time.sleep(89)
+                    for l in range (interval_between_failed/88):
+                            time.sleep(88)
                             func_readgps()
-                            
+                    print 'finished'        
                     
         except odlw_facade.Retries as error:  # this exception originates in odlw_facade
             print(str(error))
