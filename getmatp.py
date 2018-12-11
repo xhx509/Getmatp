@@ -1,21 +1,13 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.26 update on 10/31/2018
-1 automatic update from  new server
-2 fix error of timerange in transmission data
-3 fix the clim reading plot for both mobile and fixed, clim function sort reading location csv file by generation time
-4 add CONNECTION_INTERVAL to the control file
-5 fix program updates problem to make sure that we can get download the program file
-6 compatible with 7b17 and all loggers
-7 compatible with weather station
-8 on raspberry pi b+?
+version 0.0.27 update on 12/9/2018
 9 Give time sleep good names
 10 delay 3 minutes to calculate bottom temp.
 11,get rid of shallow data by 85% of max
 12,compatible with both 60 seconds and 90 seconds sample
 13, correct both raspberry pi and logger time by gps sensor reading
-
+14, fixed bugs of compatible with both 60 seconds and 90 seconds sample
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
 Remember !!!!!!  Modify control file!!!!!!!!!!!!!
 updates 
@@ -328,12 +320,15 @@ while True:
             s_file='/home/pi/Desktop/'+folder+'/'+serial_num+'('+file_num+')_S.txt'
             df=pd.read_csv(s_file,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse)#creat a new Datetimeindex
             # To competible with logger to record every 60 seconds and 90 seconds
-            if str(df.index[-2]-df.index[-3])<'0 days 00:01:04':
-                time_sample_p=1.5
-                logger_timerange_lim=logger_timerange_lim*1.5
-                interval_between_failed=interval_between_failed*1.5
-            else:
-                time_sample_p=1
+            try:
+                    if str(df.index[-1]-df.index[-2])<'0 days 00:01:04':
+                        time_sample_p=1.5
+                        logger_timerange_lim=logger_timerange_lim*1.5
+                        
+                    else:
+                        time_sample_p=1
+            except:
+                    time_sample_p=1
             os.rename(s_file,'/home/pi/Desktop/'+folder+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt')
             new_file_path='/home/pi/Desktop/towifi/li_'+serial_num+'_'+str(df.index[-1]).replace(':','').replace('-','').replace(' ','_')#folder path store the files to uploaded by wifi
             
@@ -351,12 +346,9 @@ while True:
                         
                         try:
                                 
-                                #dft=df.ix[(df['Depth (m)']>0.85*max(df['Depth (m)']))]  # get rid of shallow data
+                                dft=df.ix[(df['Depth (m)']>0.85*max(df['Depth (m)']))]  # get rid of shallow data
                                 if mode=='real':
-                                    dft=df.ix[(df['Depth (m)']>0.85*max(df['Depth (m)']))]  # get rid of shallow data    
                                     dft=dft.ix[2:]   #delay several minutes to let temperature sensor record the real bottom temp
-                                else:
-                                    dft=df
                                 if boat_type<>'fixed':
                                     dft=dft.ix[(dft['Temperature (C)']>mean(dft['Temperature (C)'])-3*std(dft['Temperature (C)'])) & (dft['Temperature (C)']<mean(dft['Temperature (C)'])+3*std(dft['Temperature (C)']))]
                                 #a=df['Temperature (C)'].resample("D",how=['count','mean'],loffset=datetime.timedelta(hours=12))
@@ -503,7 +495,8 @@ while True:
             else:
                     print 'time sleep 1500'
                     os.system('sudo rm '+file2)
-                    for l in range (interval_between_failed/88):
+                    
+                    for l in range(interval_between_failed/88): # to make sure record gps every 90 seconds
                             time.sleep(88)
                             func_readgps()
                     print 'finished'        
