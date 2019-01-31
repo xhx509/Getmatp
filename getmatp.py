@@ -1,13 +1,8 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.27 update on 12/9/2018
-9 Give time sleep good names
-10 delay 3 minutes to calculate bottom temp.
-11,get rid of shallow data by 85% of max
-12,compatible with both 60 seconds and 90 seconds sample
-13, correct both raspberry pi and logger time by gps sensor reading
-14, fixed bugs of compatible with both 60 seconds and 90 seconds sample
+version 0.0.30 update on 1/31/2019
+15 remove linda marie from old AP3 list
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
 Remember !!!!!!  Modify control file!!!!!!!!!!!!!
 updates 
@@ -45,7 +40,7 @@ CONNECTION_INTERVAL = 1000  # Minimum number of seconds between reconnects
 CONNECTION_INTERVAL_After_success_data_transfer=1500
 interval_before_program_run=400
 scan_interval=6
-habor_time_sleep_mobile=1500
+habor_time_sleep_mobile=2500
 habor_time_sleep_fixed=600
 gps_reading_interval=90
 interval_between_failed=1500
@@ -121,6 +116,7 @@ while True:
             df2=pd.read_csv(file2,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse,header=None)
             os.system('sudo timedatectl set-ntp 0')   # sync the real time
             os.system("sudo timedatectl set-time '"+str(df2.index[-1])+"'")
+            time.sleep(1)
             os.system('sudo timedatectl set-ntp 1')
             if boat_type=='mobile':
                     if len(df2)>600:
@@ -403,7 +399,7 @@ while True:
                                             ser.writelines('i\n')
                                             print 333
                                             time.sleep(3)
-                                            old_ap3_boat=['linda_marie','mary_k','mystic']
+                                            old_ap3_boat=['mary_k','mystic']
                                             if vessel_name in old_ap3_boat:
                                                     ser.writelines('ylb9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]+daily_ave+'\n')
                                             else:
