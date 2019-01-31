@@ -1,14 +1,17 @@
 # set of functions used in generating plots in the wheelhouse
 # with program running parallel with "getmatp.py" call "wxpage.py"
 # where it plots the record and generates output file
-#
+# where it now includes the "getclim" function to post climatology
+#updates on
 import glob
 import ftplib
 import shutil
+from shutil import copyfile
 import pytz
 import matplotlib.pyplot as plt
 import matplotlib.dates as dates
 import datetime
+from datetime import datetime as dt
 from pylab import *
 import pandas as pd
 from pandas import *
@@ -18,33 +21,25 @@ import numpy as np
 from gps import *
 from time import *
 import threading
-#from datetime import datetime
+
 def parse(datet):
     from datetime import datetime
     dt=datetime.strptime(datet,'%Y-%m-%dT%H:%M:%S')
-    #print type(dt)
-    #dt=datetime.strptime(datet,'%m/%d/%Y %I:%M:%S %p')
-    #dt=datetime.strptime(datet,'%H:%M:%S %m/%d/%Y')
     return dt
 
 def parse2(datet):
     from datetime import datetime
     dt=datetime.strptime(datet,'%Y-%m-%d %H:%M:%S')
-    #dt=datetime.strptime(datet,'%m/%d/%Y %I:%M:%S %p')
-    #dt=datetime.strptime(datet,'%H:%M:%S %m/%d/%Y')
     return dt    
 def gmt_to_eastern(times_gmt):
     import datetime
     times=[]
     eastern = pytz.timezone('US/Eastern')
     gmt = pytz.timezone('Etc/GMT')
-    #date = datetime.datetime.strptime(filename, '%a, %d %b %Y %H:%M:%S GMT')
     for i in range(len(times_gmt)):
         date = datetime.datetime.strptime(str(times_gmt[i]),'%Y-%m-%d %H:%M:%S')
-        #date_gmt=eastern.localize(date)
         date_gmt=gmt.localize(date)
         easterndate=date_gmt.astimezone(eastern)
-        #easterndate=date.astimezone(eastern)
         times.append(easterndate)
     return times
 def dm2dd(lat,lon):
@@ -65,27 +60,28 @@ def dm2dd(lat,lon):
         dd=float(d)
         lon_value=cc+(dd/60.)
     return lat_value, -lon_value
-def c2f(*c):
+def c2f(c):
     #convert Celsius to Fahrenheit
-    f = [(i * 1.8 + 32) for i in c]
+    f = c * 1.8 + 32
     return f
-def getclim(*lat1,*lon1,yrday=dt.now().strftime('%j'),var='Bottom_Temperature/BT_'): 
+def getclim(yrday=dt.now().strftime('%j'),var='Bottom_Temperature/BT_'): 
     # gets climatology of Bottom_Temperature, Surface_Temperature, Bottom_Salinity, or Surface_Salinity
     # as calculated by Chris Melrose from 30+ years of NEFSC CTD data on the NE Shelf provided to JiM in May 2018 
     # where "lat1", "lon1", and "yrday" are the position and yearday of interest (defaulting to today)
     # where "var" is the variable of interest (defaulting to Bottom_Temperature) 
     # inputdir='/net/data5/jmanning/clim/' # hardcoded directory name where you need to explode the "Data for Manning.zip"
     # assumes an indidividual file is stored in the "<inputdir>/<var>" directory for each yearday
+    inputdir_csv='/home/pi/Desktop/towifi/'
     inputdir='/home/pi/clim/' # hardcoded directory name
     dflat=pd.read_csv(inputdir+'LatGrid.csv',header=None)
     dflon=pd.read_csv(inputdir+'LonGrid.csv',header=None)
     lat=np.array(dflat[0])   # gets the first col (35 to 45)
     lon=np.array(dflon.ix[0])# gets the first row (-75 to -65)
     clim=pd.read_csv(inputdir+var+yrday+'.csv',header=None) # gets bottom temp for this day of year
-    if not lat1: #look for a lat& lon in the latest csv file
-      files=sorted(glob.glob(inputdir_csv+'*.csv')) # gets all the csv files in the towfi directory
-      dfcsv=pd.read_csv(files[-1],sep=',',skiprows=7)
-      [lat1,lon1]=dm2dd(float(dfcsv['lat'][0][0:-1]),float(dfcsv['lon'][0][0:-1]))
+    files=(glob.glob(inputdir_csv+'*.csv'))
+    files.sort(key=os.path.getmtime) # gets all the csv files in the towfi directory
+    dfcsv=pd.read_csv(files[-1],sep=',',skiprows=8)
+    [lat1,lon1]=dm2dd(float(dfcsv['lat'][0]),float(dfcsv['lon'][0]))
     idlat = np.abs(lat - lat1).argmin() # finds the neareast lat to input lat1
     idlon = np.abs(lon - lon1).argmin() # finds the neareast lon to input lon1
     return clim[idlon][idlat]
@@ -246,9 +242,6 @@ def p_create_pic():
       if not os.path.exists('/home/pi/Desktop/Pictures'):
         os.makedirs('/home/pi/Desktop/Pictures')
 
-
-   
-
       if not os.path.exists('uploaded_files'):
         os.makedirs('uploaded_files')
       n=0  
@@ -269,8 +262,10 @@ def p_create_pic():
            
             if dif_data==[]:
                 print  'Standby. When the program detects a probe haul, machine will reboot and show new data.'
-                time.sleep(5)
-                pass
+                import time
+                time.sleep(14)
+                
+                return
             
 
     ##################################
@@ -280,9 +275,16 @@ def p_create_pic():
             
                 fn2=fn
                               
-                if not os.path.exists('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14]):
-                    os.makedirs('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14])
-                df=pd.read_csv(fn,sep=',',skiprows=7,parse_dates={'datet':[1]},index_col='datet',date_parser=parse2)#creat a new Datetimeindex
+                if not os.path.exists('/home/pi/Desktop/Pictures/'+fn.split('/')[-1].split('_')[2]):
+                    os.makedirs('/home/pi/Desktop/Pictures/'+fn.split('/')[-1].split('_')[2])
+                df=pd.read_csv(fn,sep=',',skiprows=8,parse_dates={'datet':[1]},index_col='datet',date_parser=parse2)#creat a new Datetimeindex
+                df=df.ix[(df['Depth (m)']>0.85*mean(df['Depth (m)']))]
+                if len(df)>1000:
+                    df=df.ix[5:-5]
+                else:
+                    
+                    df=df.ix[len(df)/20:-len(df)/25-1]
+                df=df.iloc[::(len(df)/960+1),:]
                 df2=df
                 df2['Depth (m)']=[x*(-0.5468) for x in df2['Depth (m)'].values]
        
@@ -296,84 +298,56 @@ def p_create_pic():
                 time_df2=gmt_to_eastern(df2.index)
                 time_df=gmt_to_eastern(df.index)
      
-                ax1.plot(time_df,df['Temperature (C)'],'b',)
-                #ax1.plot(df.index[index_good_start:index_good_end],df['Temperature (C)'][index_good_start:index_good_end],'red',linewidth=4,label='in the water')
-                ax1.set_ylabel('Temperature (Celius)')
+                ax1.plot(time_df,df['Temperature (C)']*1.8+32,'b',)
+                #ax1.set_ylim(np.nanmin(df['Temperature (C)'].values)*1.8+30,np.nanmax(df['Temperature (C)'].values)*1.8+36)
+                ax1.set_ylabel('Temperature (Fahrenheit)')
                 ax1.legend(['temp','in the water'])
-              
-                '''
-                try:    
-                            ax1.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
-                            ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
-                            ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
-                except:
-                            print 'not enough data'
-                '''
+                
                 try:    
                         if max(df.index)-min(df.index)>Timedelta('0 days 04:00:00'):
                             ax1.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/12))# for hourly plot
                             ax2.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/12))# for hourly plot
-                            
-                            #ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
-                            #ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
-                            
                         else:
                             ax1.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/4))# for hourly plot
                             ax2.xaxis.set_major_locator(dates.DateLocator(interval=(max(df.index)-min(df.index)).seconds/3600/4))# for hourly plot
-                            
-                            #ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
-                            #ax2.xaxis.set_major_formatter(dates.DateFormatter('%D %H'))
-                            #ax1.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
-                            #ax2.xaxis.set_major_locator(dates.MinuteLocator(interval=(max(df.index)-min(df.index)).seconds/60/6))# for minutely plot
-                            #ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
-                            #ax2.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
                 except:
                     print ' '
+                
                 clim=getclim()# extracts climatological values at this place and yearday
-                ax1.text(0.9, 0.15, 'mean temperature ='+str(round(c2f(meantemp),1))+'F Climatology ='+str(round(c2f(clim),1))+'F',
+                
+                if isnan(clim):
+                    txt='mean temperature ='+str(round(c2f(meantemp),1))+'F (No Climatology here.)'
+                else:    
+                    txt='mean temperature ='+str(round(c2f(meantemp),1))+'F Climatology ='+str(round(c2f(clim),1))+'F'
+                ax1.text(0.9, 0.15,txt,
                             verticalalignment='bottom', horizontalalignment='right',
                             transform=ax1.transAxes,
-                            color='green', fontsize=15)    
-                #ax1.xaxis.set_major_formatter(dates.DateFormatter('%D %H:%M'))
-                #ax1.set_xlabel('')
-                
-                #ax1.set_ylim(int(np.nanmin(df['Temperature (C)'].values)),int(np.nanmax(df['Temperature (C)'].values)))
-                
-                #ax1.set_xticklabels([]) #that may occur a bug, to make a plot not running
+                            color='green', fontsize=15)
                 
                 ax1.grid()
                 ax12=ax1.twinx()
                 ax12.set_title(tit)
-                ax12.set_ylabel('Fahrenheit')
-                ax12.set_xlabel('')
-                #ax12.set_xticklabels([])
-                ax12.set_ylim(np.nanmin(df['Temperature (C)'].values)*1.8+30,np.nanmax(df['Temperature (C)'].values)*1.8+36)
-            
+                #ax12.set_ylabel('Fahrenheit')
+                ax12.set_ylabel('Temperature (Celius)')
+                #ax12.set_xlabel('')
+                ax12.set_ylim(np.nanmin(df['Temperature (C)'].values)-1,np.nanmax(df['Temperature (C)'].values)+1)
 
-                #df['depth'].plot()
                 ax2.plot(time_df2,df2['Depth (m)'],'b',label='Depth',color='green')
-                
-                #ax2.plot(df2.index[index_good_start:index_good_end],df2['Az (g)'][index_good_start:index_good_end],'red',linewidth=4,label='in the water')
                 ax2.legend()
                 ax2.invert_yaxis()
                 ax2.set_ylabel('Depth(Fathom)')
-                
                 ax2.set_ylim(np.nanmin(df2['Depth (m)'].values)*1.05,np.nanmax(df2['Depth (m)'].values)*0.95)
-        
                 ax2.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax2.grid()
-                #ax2.set_ylim(-1,1)
+
                 ax22=ax2.twinx()
                 ax22.set_ylabel('Depth(feet)')
-               
-                ax22.set_ylim(np.nanmax(df2['Depth (m)'].values)*6*0.95,np.nanmin(df2['Depth (m)'].values)*6*1.05)        
-                #ax22.set_ylim()
+                ax22.set_ylim(round(np.nanmax(df2['Depth (m)'].values)*6*0.95,1),round(np.nanmin(df2['Depth (m)'].values)*6*1.05,1))        
                 ax22.invert_yaxis()
 
                 plt.gcf().autofmt_xdate()    
                 ax2.set_xlabel('TIME '+time_df[0].astimezone(pytz.timezone('US/Eastern')).strftime('%m/%d/%Y %H:%M:%S')+' - '+time_df[-1].astimezone(pytz.timezone('US/Eastern')).strftime('%m/%d/%Y %H:%M:%S'))
-                
-                plt.savefig('/home/pi/Desktop/Pictures/'+fn.split('/')[-1][6:14]+'/'+fn.split('/')[-1][15:21]+'.png')
+                plt.savefig('/home/pi/Desktop/Pictures/'+fn.split('/')[-1].split('_')[2]+'/'+fn.split('/')[-1].split('_')[-1].split('.')[0]+'.png')
                 plt.close()
 
             a=open('uploaded_files/mypicfile.dat','r').close()
@@ -382,24 +356,63 @@ def p_create_pic():
             
             [a.writelines(i+'\n') for i in dif_data]
             a.close()
-            
-            
 
             print 'New data successfully downloaded. Plot will appear.'
-            
-            
-                 
             return 
        
       except:
+          print 'the new csv file cannot be plotted, skip it'
+          a=open('uploaded_files/mypicfile.dat','a+')
+            
+          [a.writelines(i+'\n') for i in dif_data]
+          a.close()
           return
                             
              
 def wifi():
       if not os.path.exists('../uploaded_files'):
         os.makedirs('../uploaded_files')
+      if not os.path.exists('/home/pi/for_update/Desktop'):
+        os.makedirs('/home/pi/for_update/Desktop')
+      if not os.path.exists('/home/pi/for_update/mat_modules'):
+        os.makedirs('/home/pi/for_update/mat_modules')      
       if not os.path.exists('../uploaded_files/myfile.dat'):
           open('../uploaded_files/myfile.dat','w').close()
+      #software updates
+      import time
+      session1 = ftplib.FTP('66.114.154.52','huanxin','123321')
+      session1.cwd("/updates/Desktop")
+      files_Desktop=session1.nlst()
+      #print files_Desktop
+      for a in files_Desktop:
+          file = open('/home/pi/for_update/Desktop/'+a,'wb')
+          session1.retrbinary('RETR '+a,file.write)
+          file.close()
+          time.sleep(1)
+          if os.stat('/home/pi/for_update/Desktop/'+a).st_size>=4:
+              copyfile('/home/pi/for_update/Desktop/'+a,'/home/pi/Desktop/'+a)           
+          
+      time.sleep(1)
+      session1.cwd("/updates/mat_modules")
+      
+      files_mat_modules=session1.nlst()
+      
+      for b in files_mat_modules:
+          file = open('/home/pi/for_update/mat_modules/'+b,'wb')
+          session1.retrbinary('RETR '+b,file.write)
+          file.close()
+          time.sleep(1)
+          if os.stat('/home/pi/for_update/mat_modules/'+b).st_size>=4:
+              copyfile('/home/pi/for_update/mat_modules/'+b,'/home/pi/Desktop/mat_modules/'+b)
+          
+          if os.path.exists("mat_modules/"+b+'c'):
+              os.remove("mat_modules/"+b+'c')
+              
+      session1.quit()
+      time.sleep(3)
+      
+      
+      
       if 3>2:
             files=[]
             files.extend(sorted(glob.glob('/home/pi/Desktop/towifi/*.csv')))
@@ -414,13 +427,13 @@ def wifi():
             #print dif_data
             if dif_data==[]:
                 print ''
-                time.sleep(9)
-                pass
+                time.sleep(1)
+                return
          
             for u in dif_data:
                 import time
                 #print u
-                session = ftplib.FTP('216.9.9.126','huanxin','123321')
+                session = ftplib.FTP('66.114.154.52','huanxin','123321')
                 file = open(u,'rb') 
                 session.cwd("/Matdata")  
                 #session.retrlines('LIST')               # file to send
