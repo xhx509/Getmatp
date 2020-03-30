@@ -1,8 +1,15 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.30 update on 1/31/2019
-15 remove linda marie from old AP3 list
+version 0.0.42 update on 11/25/2019
+1, not sending daily average to ap3 of mobile case
+2, Save bad lid file to 'towifi' and upload to cloud
+3, add number '1' to the end of sending message to make logger serial number complete.also add '1' at the end of old ap3
+4, Delete function psutil
+5, add 'Ellen_Diane' in old ap3 list
+6, add 6 more minutes for delay reading temp data  
+7, Sync logger time if logger time faster than pi time more than 100s
+8, every data to be telemetried is caculated by "dft"
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
 Remember !!!!!!  Modify control file!!!!!!!!!!!!!
 updates 
@@ -25,7 +32,6 @@ import OdlParsing
 import glob
 import logging
 from subprocess import check_output
-import psutil
 from shutil import copyfile
 from li_parse import parse_li
 from wifiandpic import wifi,judgement2,parse,gps_compare
@@ -114,10 +120,13 @@ while True:
             file2=max(glob.glob('/home/pi/Desktop/gps_location/*'))
     try:
             df2=pd.read_csv(file2,sep=',',skiprows=0,parse_dates={'datet':[0]},index_col='datet',date_parser=parse,header=None)
+            time.sleep(1)
             os.system('sudo timedatectl set-ntp 0')   # sync the real time
+            time.sleep(1)
             os.system("sudo timedatectl set-time '"+str(df2.index[-1])+"'")
             time.sleep(1)
             os.system('sudo timedatectl set-ntp 1')
+            time.sleep(1)
             if boat_type=='mobile':
                     if len(df2)>600:
                             os.system('sudo rm '+file2)
@@ -226,7 +235,7 @@ while True:
                 print('ODL-1W returned an invalid time. Clock not checked.')
             else:
                 # Is the clock more than a day off?
-                if (datetime.datetime.now() - odlw_time).total_seconds() > 6:
+                if abs((datetime.datetime.now() - odlw_time).total_seconds()) > 100:
                     print('did  Syncing time.')
                     connection.sync_time()
 
@@ -300,11 +309,14 @@ while True:
             print('Extracting 1.5-minute averaged temperature data...')
             try:
                     parse_li(file_name)  # default out_path
+                    #os.rename('/home/pi/Desktop/'+folder+'/'+serial_num+'('+file_num+').lid','/home/pi/Desktop/towifi/error'+serial_num+file_num+'.lid')
             except:
                     print "problems on parsing lid file"
+                    os.rename('/home/pi/Desktop/'+folder+'/'+serial_num+'('+file_num+').lid','/home/pi/Desktop/towifi/error'+serial_num+file_num+'.lid')
                     time.sleep(900)
                     print "remove lid file in 100 seconds"
                     time.sleep(100)
+                   
                     os.system('sudo rm /home/pi/Desktop/'+folder+'/*.lid')
                     os.system('sudo reboot')
                     
@@ -329,50 +341,64 @@ while True:
             new_file_path='/home/pi/Desktop/towifi/li_'+serial_num+'_'+str(df.index[-1]).replace(':','').replace('-','').replace(' ','_')#folder path store the files to uploaded by wifi
             
             s_file='/home/pi/Desktop/'+folder+'/'+serial_num+str(df.index[-1]).replace(':','')+'S.txt'
-            try:
+            if mode=='test':
+                    valid='yes'
+                    st_index=0
+                    end_index=len(df)
+            else:
+                    
+                    try:
 
-                        valid='no'  #boat type ,pick one from 'lobster' or 'mobile'
-                        valid,st_index,end_index=judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim)
-                        print 'valid is '+valid
-            except:
-                        print 'cannot read the s_file'
+                                valid='no'  #boat type ,pick one from 'lobster' or 'mobile'
+                                valid,st_index,end_index=judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim)
+                                print 'valid is '+valid
+                    except:
+                                print 'cannot read the s_file'
                     
             if valid=='yes':       
                 if transmit=='yes':
                         
                         try:
                                 
-                                dft=df.ix[(df['Depth (m)']>0.85*max(df['Depth (m)']))]  # get rid of shallow data
+                                
                                 if mode=='real':
-                                    dft=dft.ix[2:]   #delay several minutes to let temperature sensor record the real bottom temp
-                                if boat_type<>'fixed':
-                                    dft=dft.ix[(dft['Temperature (C)']>mean(dft['Temperature (C)'])-3*std(dft['Temperature (C)'])) & (dft['Temperature (C)']<mean(dft['Temperature (C)'])+3*std(dft['Temperature (C)']))]
+                                    dft=df.ix[(df['Depth (m)']>0.85*max(df['Depth (m)']))]  # get rid of shallow data
+                                    dft=dft.ix[7:]   #delay several minutes to let temperature sensor record the real bottom temp
+                                    if boat_type<>'fixed':
+                                            dft=dft.ix[(dft['Temperature (C)']>mean(dft['Temperature (C)'])-3*std(dft['Temperature (C)'])) & (dft['Temperature (C)']<mean(dft['Temperature (C)'])+3*std(dft['Temperature (C)']))]
+
+                                else:
+                                    dft=df
                                 #a=df['Temperature (C)'].resample("D",how=['count','mean'],loffset=datetime.timedelta(hours=12))
                                 #a.ix[a['count']<900,['mean']]='nan'
-                                meantemp=str(int(round(np.mean(dft['Temperature (C)'][st_index:end_index]),2)*100)).zfill(4)
-                                sdeviatemp=str(int(round(np.std(dft['Temperature (C)'][st_index:end_index]),2)*100)).zfill(4)
+                                meantemp=str(int(round(np.mean(dft['Temperature (C)'][0:-2]),2)*100)).zfill(4)
+                                sdeviatemp=str(int(round(np.std(dft['Temperature (C)'][0:-2]),2)*100)).zfill(4)
                                 if   boat_type=='fixed':
-                                        timerange=str(int((end_index-st_index)*1.5/60/time_sample_p)).zfill(3) #assumes logger time interval is 1.5 minutes,the result unit is in hours
+                                        timerange=str(int(len(dft)*1.5/60/time_sample_p)).zfill(3) #assumes logger time interval is 1.5 minutes,the result unit is in hours
                                 else:
-                                        timerange=str(int((end_index-st_index)*1.5/time_sample_p)).zfill(3) #logger time interval is 1.5 minutes put in hours
+                                        timerange=str(int(len(dft)*1.5/time_sample_p)).zfill(3) #logger time interval is 1.5 minutes put in hours
                                 meandepth=str(abs(int(round(mean(dft['Depth (m)'].values))))).zfill(3)
                                 rangedepth=str(abs(int(round(max(dft['Depth (m)'].values)-min(dft['Depth (m)'].values))))).zfill(3)
                                 print 'meandepth'+meandepth+'rangedepth'+rangedepth+'timerange'+timerange+'temp'+meantemp+'sdev'+sdeviatemp+' logger name'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]
                                 daily_ave=''
                                 if boat_type=='fixed':
-                                    tsod=dft.resample('D',how=['count','mean','median','min','max','std'],loffset=datetime.timedelta(hours=-12)) #creates daily averages,'-12' does not mean anything, only shows on datetime result 
-                                    tsod=dft.resample('D',how=['mean'],loffset=datetime.timedelta(hours=-12))
-                                    if len(tsod)>5:
-                                        #temp5=[str(i).rjust(4,'f') for i in tsod.iloc[-5:]['Temperature (C)']['mean']]
-                                        temp5=[str(int(round(float(i),2)*100)).zfill(4) for i in tsod.iloc[-6:-1]['Temperature (C)']['mean']]
-                                        #tsod.ix[tsod['count']<minnumperday,['mean','median','min','max','std']] = 'NaN' # set daily averages to not-a-number if not enough went into it
-                                    else:
-                                        temp5=[str(int(round(float(i),2)*100)).zfill(4) for i in tsod.iloc[:-1]['Temperature (C)']['mean']]
-                               
-                                
-                                    for i in temp5:
-                                        daily_ave+=i
-                                    print daily_ave
+                                        
+                                    try:    
+                                            tsod=dft.resample('D',how=['count','mean','median','min','max','std'],loffset=datetime.timedelta(hours=-12)) #creates daily averages,'-12' does not mean anything, only shows on datetime result 
+                                            tsod=dft.resample('D',how=['mean'],loffset=datetime.timedelta(hours=-12))
+                                            if len(tsod)>5:
+                                                #temp5=[str(i).rjust(4,'f') for i in tsod.iloc[-5:]['Temperature (C)']['mean']]
+                                                temp5=[str(int(round(float(i),2)*100)).zfill(4) for i in tsod.iloc[-6:-1]['Temperature (C)']['mean']]
+                                                #tsod.ix[tsod['count']<minnumperday,['mean','median','min','max','std']] = 'NaN' # set daily averages to not-a-number if not enough went into it
+                                            else:
+                                                temp5=[str(int(round(float(i),2)*100)).zfill(4) for i in tsod.iloc[:-1]['Temperature (C)']['mean']]
+                                       
+                                        
+                                            for i in temp5:
+                                                daily_ave+=i
+                                            print daily_ave
+                                    except:
+                                            daily_ave='1' #add number '1' to the end of sending message to make logger serial number complete.
                                 '''  
                                 try:
                                         x=[p.pid for p in psutil.process_iter() if 'sudo' in str(p.name)]  #To terminate weather station program in background
@@ -399,11 +425,14 @@ while True:
                                             ser.writelines('i\n')
                                             print 333
                                             time.sleep(3)
-                                            old_ap3_boat=['mary_k','mystic']
+                                            old_ap3_boat=['mary_k','mystic','Ellen_Diane']
                                             if vessel_name in old_ap3_boat:
-                                                    ser.writelines('ylb9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]+daily_ave+'\n')
+                                                    ser.writelines('ylb9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]+daily_ave+'1\n')
                                             else:
-                                                    ser.writelines('ylb 9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]+daily_ave+'\n')
+                                                    if boat_type=='mobile':
+                                                        ser.writelines('ylb 9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]+'1\n') # add number '1' to the end of sending message to make logger serial number complete.
+                                                    else:
+                                                        ser.writelines('ylb 9'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]+daily_ave+'\n')
                                             time.sleep(2)
                                             print '999'+meandepth+rangedepth+timerange+meantemp+sdeviatemp+'eee'+MAC_FILTER[0][-5:-3]+MAC_FILTER[0][-2:]
                                             time.sleep(4)
