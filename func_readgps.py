@@ -42,12 +42,15 @@ def func_readgps():
             if line[:2]=='00':
                logger_name=line[9:11]+line[12:14]+line[15:17]     
     df.close()
-    lat,lon,times=gps_name_generate(ports,lat,lon)
-    if len(lat)>4:
-            f=open('/home/pi/Desktop/gps_location/'+logger_name+times[:4]+'_'+times[5:7]+'.txt','a+')
-            f.writelines(times+','+lat+lon+'\n')
-            time.sleep(1) 
-            f.close()
-            #cause there is 1 seconds delay , 29 means 30 seconds
+    while True:
+        
+        lat,lon,times=gps_name_generate(ports,lat,lon)
+        if len(lat)>4:
+                f=open('/home/pi/Desktop/gps_location/'+logger_name+times[:4]+'_'+times[5:7]+'.txt','a+')
+                f.writelines(times+','+lat+lon+'\n')
+                time.sleep(1) 
+                f.close()
+                return
+        time.sleep(29)#cause there is 1 seconds delay , 29 means 30 seconds
 
 

@@ -64,7 +64,7 @@ def c2f(c):
     #convert Celsius to Fahrenheit
     f = c * 1.8 + 32
     return f
-def getclim(yrday=dt.now().strftime('%j'),var='Bottom_Temperature/BT_'): 
+def getclim(yrday=str(int(dt.now().strftime('%j'))),var='Bottom_Temperature/BT_'): 
     # gets climatology of Bottom_Temperature, Surface_Temperature, Bottom_Salinity, or Surface_Salinity
     # as calculated by Chris Melrose from 30+ years of NEFSC CTD data on the NE Shelf provided to JiM in May 2018 
     # where "lat1", "lon1", and "yrday" are the position and yearday of interest (defaulting to today)
@@ -245,7 +245,12 @@ def p_create_pic():
       if not os.path.exists('uploaded_files'):
         os.makedirs('uploaded_files')
       n=0  
-      
+      if 'r' in open('/home/pi/Desktop/mode.txt').read():
+        file='control_file.txt'
+        mode='real'
+      else:
+        file='test_control_file.txt'
+        mode='test'
       try:
             files=[]
             files.extend(sorted(glob.glob('/home/pi/Desktop/towifi/*.csv')))
@@ -278,13 +283,15 @@ def p_create_pic():
                 if not os.path.exists('/home/pi/Desktop/Pictures/'+fn.split('/')[-1].split('_')[2]):
                     os.makedirs('/home/pi/Desktop/Pictures/'+fn.split('/')[-1].split('_')[2])
                 df=pd.read_csv(fn,sep=',',skiprows=8,parse_dates={'datet':[1]},index_col='datet',date_parser=parse2)#creat a new Datetimeindex
-                df=df.ix[(df['Depth (m)']>0.85*mean(df['Depth (m)']))]
-                if len(df)>1000:
-                    df=df.ix[5:-5]
+                if mode=='real':
+                    df=df.ix[(df['Depth (m)']>0.85*mean(df['Depth (m)']))]
+                    df=df.ix[3:-2] # delete this line if cannot get plot
+                    if len(df)>1000:
+                        df=df.ix[5:-5]
+                        df=df.iloc[::(len(df)/960+1),:] #Plot at most 1000 data
                 else:
-                    
-                    df=df.ix[len(df)/20:-len(df)/25-1]
-                df=df.iloc[::(len(df)/960+1),:]
+                    if len(df)>1000:
+                        df=df.iloc[::(len(df)/960+1),:]
                 df2=df
                 df2['Depth (m)']=[x*(-0.5468) for x in df2['Depth (m)'].values]
        
@@ -319,10 +326,10 @@ def p_create_pic():
                     txt='mean temperature ='+str(round(c2f(meantemp),1))+'F (No Climatology here.)'
                 else:    
                     txt='mean temperature ='+str(round(c2f(meantemp),1))+'F Climatology ='+str(round(c2f(clim),1))+'F'
-                ax1.text(0.9, 0.15,txt,
+                ax1.text(0.95, 0.01,txt,
                             verticalalignment='bottom', horizontalalignment='right',
                             transform=ax1.transAxes,
-                            color='green', fontsize=15)
+                            color='red', fontsize=14)
                 
                 ax1.grid()
                 ax12=ax1.twinx()
@@ -330,7 +337,7 @@ def p_create_pic():
                 #ax12.set_ylabel('Fahrenheit')
                 ax12.set_ylabel('Temperature (Celius)')
                 #ax12.set_xlabel('')
-                ax12.set_ylim(np.nanmin(df['Temperature (C)'].values)-1,np.nanmax(df['Temperature (C)'].values)+1)
+                ax12.set_ylim(np.nanmin(df['Temperature (C)'].values),np.nanmax(df['Temperature (C)'].values)+0.01)
 
                 ax2.plot(time_df2,df2['Depth (m)'],'b',label='Depth',color='green')
                 ax2.legend()
@@ -339,7 +346,7 @@ def p_create_pic():
                 ax2.set_ylim(np.nanmin(df2['Depth (m)'].values)*1.05,np.nanmax(df2['Depth (m)'].values)*0.95)
                 ax2.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax2.grid()
-
+                
                 ax22=ax2.twinx()
                 ax22.set_ylabel('Depth(feet)')
                 ax22.set_ylim(round(np.nanmax(df2['Depth (m)'].values)*6*0.95,1),round(np.nanmin(df2['Depth (m)'].values)*6*1.05,1))        
@@ -416,6 +423,7 @@ def wifi():
       if 3>2:
             files=[]
             files.extend(sorted(glob.glob('/home/pi/Desktop/towifi/*.csv')))
+            files.extend(sorted(glob.glob('/home/pi/Desktop/towifi/error*')))
             #print files  
             with open('../uploaded_files/myfile.dat') as f:
                 content = f.readlines()        
@@ -514,6 +522,7 @@ def judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim):
         
         index_good_start=1
         index_good_end=len(df)-1
+       
         if boat_type<>'mobile':
             index_good=np.where(abs(df['Depth (m)'])>logger_pressure_lim)
             if len(index_good[0])<logger_timerange_lim:  #100 means 150 minutes
@@ -540,7 +549,7 @@ def judgement2(boat_type,s_file,logger_timerange_lim,logger_pressure_lim):
  
 def gps_compare(lat,lon,mode): #check to see if the boat is in the harbor
     
-    harbor_range=0.4 #box size of latitude and longitude, unit: seconds/10
+    harbor_range=0.5 #box size of latitude and longitude, unit: seconds/10
     if mode=='test':
         file2='/home/pi/Desktop/test_harborlist.txt'
     else:
