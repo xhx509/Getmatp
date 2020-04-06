@@ -1,0 +1,10 @@
+15               	# logger time range(minutes), set it to 5 , during the test. Set it to the shortest haul time. Unit Minute
+5                       # Fathom, Set to 0 for test, set to 15 after the test
+yes             	# Set to 'yes', if there is a transmitter, otherwise, set to 'no'
+00:1e:c0:6c:76:14       # Put logger Mac address in ,   
+mobile                  # boat type , mobile or fixed
+45                      # Vessel Number, 
+Lery_Charles            # Vessel Name,
+no                      # record tilt data?
+60                      # 
+rock                    # transmitter name
