@@ -1,14 +1,9 @@
 '''
 Author: Huanxin Xu,
 Modified from Nick Lowell on 2016/12
-version 0.0.42 update on 11/25/2019
-1, not sending daily average to ap3 of mobile case
-2, Save bad lid file to 'towifi' and upload to cloud
-3, add number '1' to the end of sending message to make logger serial number complete.also add '1' at the end of old ap3
-4, Delete function psutil
-5, add 'Ellen_Diane' in old ap3 list
-6, add 6 more minutes for delay reading temp data  
-7, Sync logger time if logger time faster than pi time more than 100s
+version 0.0.43 update on 05/19/2020
+1, Compatible pi3 and p4 with panda loc for match gps data and temp data
+7, Sync logger time if logger time faster than pi time more than 30s
 8, every data to be telemetried is caculated by "dft"
 For further questions ,please contact 508-564-8899, or send email to xhx509@gmail.com
 Remember !!!!!!  Modify control file!!!!!!!!!!!!!
@@ -63,7 +58,7 @@ else:
         mode='test'
 f1=open(file,'r')
 logger_timerange_lim=int(int(f1.readline().split('  ')[0])/1.5)
-logger_pressure_lim=int(f1.readline().split('  ')[0])*1.8  #convert from fathom to meter
+logger_pressure_lim=int(int(f1.readline().split('  ')[0])*1.7)  #convert from fathom to meter
 transmit=f1.readline().split('  ')[0]
 MAC_FILTER=[f1.readline().split('  ')[0]]
 boat_type=f1.readline().split('  ')[0]
@@ -235,7 +230,7 @@ while True:
                 print('ODL-1W returned an invalid time. Clock not checked.')
             else:
                 # Is the clock more than a day off?
-                if abs((datetime.datetime.now() - odlw_time).total_seconds()) > 100:
+                if abs((datetime.datetime.now() - odlw_time).total_seconds()) >30:
                     print('did  Syncing time.')
                     connection.sync_time()
 
@@ -459,10 +454,13 @@ while True:
                             for i in df1.index:
                                     try:
                                             if boat_type=='mobile':
-                                                    
-                                                    inx=str(min(df2[inx:].index,key=lambda d: abs(d-i)))
+                                                inx=str(min(df2[inx:].index,key=lambda d: abs(d-i)))
+                                                try:
                                                     lat.append(float(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][1].values[0][:-1]))
                                                     lon.append(float(df2[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][2].values[0][:-1]))
+                                                except:
+                                                    lat.append(df2.loc[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][1][:-1])
+                                                    lon.append(df2.loc[str(min(df2[inx:].index,key=lambda d: abs(d-i)))][2][:-1])#avoid error without ix for index
                                             else:
                                                     lat.append(lat_1)
                                                     lon.append(lon_1)
